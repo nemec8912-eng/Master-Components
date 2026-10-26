@@ -17,7 +17,7 @@ MC.categories = [
 ];
 MC.modes = {
   ohm:   { name: 'Ω',   title: 'Сопротивление', unit: '' },
-  beep:  { name: '🔊',  title: 'Прозвонка',     unit: '' },
+  beep:  { name: '🔊',  lcd: '•)))', title: 'Прозвонка',     unit: '' },
   diode: { name: '▶|',  title: 'Проверка диодов', unit: 'V' },
   cap:   { name: 'F',   title: 'Ёмкость',       unit: '' },
   esr:   { name: 'ESR', title: 'ESR (эквивалентное сопротивление)', unit: '' },

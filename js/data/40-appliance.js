@@ -203,7 +203,7 @@ MC.add([
     ['Подгорел контакт', 'Переключается, но COM–NO показывает десятки Ом.']
   ],
   pins: [{ id: 'COM', name: 'COM (общий)' }, { id: 'NC', name: 'NC (пустой бак)' }, { id: 'NO', name: 'NO (уровень)' }],
-  modes: ['ohm', 'beep'],
+  modes: ['beep', 'ohm'],
   toggle: { label: 'Подуть в трубку' },
   states: [
     { id: 'ok', name: 'Исправен', ok: true, note: 'Механический, 3 контакта', r: { 'ohm:COM|NC': 0.1, 'ohm:*': 'OL', 'on|ohm:COM|NC': 'OL', 'on|ohm:COM|NO': 0.1 } },
@@ -233,7 +233,7 @@ MC.add([
     ['Залип (не размыкается)', 'При нагреве остаётся замкнутым — перегрев, срабатывает термопредохранитель.']
   ],
   pins: [{ id: 'A', name: 'Вывод 1' }, { id: 'B', name: 'Вывод 2' }],
-  modes: ['ohm', 'beep'],
+  modes: ['beep', 'ohm'],
   toggle: { label: 'Нагреть выше порога' },
   states: [
     { id: 'ok', name: 'Исправен', ok: true, note: 'KSD301 85 °C, NC', r: { 'ohm:A|B': 0.05, 'on|ohm:A|B': 'OL' } },

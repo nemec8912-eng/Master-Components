@@ -7,6 +7,44 @@
 
   function esc(s) { return String(s).replace(/[&<>"]/g, function (ch) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]; }); }
   function store(k, v) { try { if (v === undefined) return JSON.parse(localStorage.getItem('mc_' + k)); localStorage.setItem('mc_' + k, JSON.stringify(v)); } catch (e) { return null; } }
+  // ---------- Звук прозвонки (как пищалка мультиметра, ~2,7 кГц) ----------
+  var Sound = (function () {
+    var ctx = null, active = [];
+    var muted = store('muted') === true;
+    function ensure() {
+      if (!ctx) { var AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null; ctx = new AC(); }
+      if (ctx.state === 'suspended') ctx.resume();
+      return ctx;
+    }
+    function stop() { active.forEach(function (o) { try { o.stop(); } catch (e) {} }); active = []; }
+    function tone(start, dur) {
+      var o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'square'; o.frequency.value = 2700;
+      g.gain.setValueAtTime(0, start);
+      g.gain.linearRampToValueAtTime(0.07, start + 0.005);
+      g.gain.setValueAtTime(0.07, start + dur - 0.01);
+      g.gain.linearRampToValueAtTime(0, start + dur);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(start); o.stop(start + dur + 0.02);
+      active.push(o);
+    }
+    return {
+      // kind: true — цепь целая (непрерывный писк), 'jitter' — плохой контакт (прерывистый), иначе тишина
+      play: function (kind) {
+        stop();
+        if (muted || !kind || !ensure()) return;
+        var t = ctx.currentTime + 0.01;
+        if (kind === 'jitter') {
+          var pat = [0.07, 0.12, 0.04, 0.2, 0.09, 0.05, 0.15, 0.06];
+          pat.forEach(function (d, i) { if (i % 2 === 0) tone(t, d); t += d + 0.05; });
+        } else tone(t, 0.9);
+        if (navigator.vibrate) navigator.vibrate(kind === 'jitter' ? [60, 80, 40, 120, 80] : 300);
+      },
+      toggle: function () { muted = !muted; store('muted', muted); if (muted) stop(); },
+      muted: function () { return muted; }
+    };
+  })();
+
   function pinName(comp, id) { var p = comp.pins.find(function (x) { return x.id === id; }); return p ? p.name : id; }
 
   // ---------- Шапка ----------
@@ -65,8 +103,10 @@
   // opts: {comp, state, quiz:boolean, onChange}
   function meterWidget(root, comp, opts) {
     var st = { mode: comp.modes[0], red: null, black: null, on: false, state: opts.state || M.okState(comp) };
+    var lastM = null;
     function render() {
       var m = M.measure(comp, st.state, st.mode, st.red, st.black, st.on);
+      lastM = m;
       var modeBtns = comp.modes.map(function (md) {
         return '<button class="mode' + (md === st.mode ? ' on' : '') + '" data-mode="' + md + '" title="' + MC.modes[md].title + '">' + MC.modes[md].name + '</button>';
       }).join('');
@@ -86,8 +126,8 @@
 
       root.innerHTML =
         '<div class="meter">' +
-          '<div class="meter-top"><span class="brand">MASTER DT-830</span><span class="auto">AUTO</span></div>' +
-          '<div class="lcd' + (m.text ? ' txt' : '') + '"><span class="lcd-mode">' + MC.modes[st.mode].name + '</span>' + beep +
+          '<div class="meter-top"><span class="brand">MASTER DT-830</span><span class="mt-r"><button class="mute" data-mute="1" aria-label="Звук прозвонки">' + (Sound.muted() ? '🔇 звук выкл' : '🔈 звук вкл') + '</button><span class="auto">AUTO</span></span></div>' +
+          '<div class="lcd' + (m.text ? ' txt' : '') + '"><span class="lcd-mode">' + (MC.modes[st.mode].lcd || MC.modes[st.mode].name) + '</span>' + beep +
             '<span class="lcd-val">' + esc(m.val) + '</span><span class="lcd-unit">' + esc(m.unit || '') + '</span></div>' +
           '<div class="modes">' + modeBtns + '</div>' +
           '<div class="mode-title">' + MC.modes[st.mode].title + '</div>' +
@@ -109,14 +149,16 @@
       }
       if (b.dataset.swap) { var t = st.red; st.red = st.black; st.black = t; }
       if (b.dataset.toggle) st.on = !st.on;
+      if (b.dataset.mute) { Sound.toggle(); render(); return; }
       render();
+      Sound.play(lastM && lastM.beep);
       if (opts.onChange) opts.onChange(st);
     });
     render();
     // Автовыбор первой пары щупов
     if (comp.pins.length >= 2) { st.red = comp.pins[0].id; st.black = comp.pins[1].id; render(); }
     return {
-      setState: function (s) { st.state = s; render(); },
+      setState: function (s) { st.state = s; render(); Sound.play(lastM && lastM.beep); },
       get: function () { return st; }
     };
   }
