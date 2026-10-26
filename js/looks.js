@@ -220,6 +220,18 @@
     compressor: ['C', 'S', 'R', 'K']
   };
 
+  // Группы выводов (обмотки, контакты) — рисуются рамкой с подписью
+  var GROUPS = {
+    tpi: [['P1', 'P2', 'Первичная (горячая)'], ['A1', 'A2', 'Вспомогательная'], ['S1', 'S2', 'Вторичная (выход)']],
+    mains: [['P1', 'P2', 'Сетевая 220 В'], ['S1', 'S2', 'Вторичная']],
+    mot: [['P1', 'P2', 'Сеть'], ['F1', 'F2', 'Накал'], ['HV', 'K', 'ВВ обмотка']],
+    relay: [['K1', 'K2', 'Катушка'], ['COM', 'NC', 'NO', 'Контакты']],
+    wmotor: [['T1', 'T2', 'Тахо'], ['B1', 'B2', 'Щётки'], ['S1', 'S2', 'S3', 'Статор']],
+    opto: [['A', 'K', 'Светодиод'], ['E', 'C', 'Транзистор']],
+    magnetron: [['F1', 'F2', 'Накал']],
+    heater: [['L1', 'L2', 'Спираль']],
+    wires: [['A1', 'A2', 'Жила 1 (начало–конец)'], ['B1', 'B2', 'Жила 2 (начало–конец)']]
+  };
   window.MC = window.MC || {};
   MC.look = function (comp) {
     var fn = LOOKS[comp.id];
@@ -227,7 +239,8 @@
     var L = fn();
     var order = ORDER[comp.id] || comp.pins.map(function (p) { return p.id; });
     var pos = {};
-    order.forEach(function (id, i) { if (L.pins[i]) pos[id] = L.pins[i]; });
-    return { g: L.g, pos: pos };
+    var num = {};
+    order.forEach(function (id, i) { if (L.pins[i]) { pos[id] = L.pins[i]; num[id] = i + 1; } });
+    return { g: L.g, pos: pos, num: num, groups: GROUPS[comp.id] || [] };
   };
 })();

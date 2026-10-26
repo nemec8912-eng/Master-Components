@@ -123,6 +123,25 @@
     if (n.indexOf('|') >= 0) n = n.split('|')[1];
     return n.trim();
   }
+  var GCOL = ['#4fa3ff', '#ffb547', '#c08bff', '#4fd2c8'];
+  var TRAY = { red: [226, 256], black: [226, 282] };
+  // Щуп: остриё в (x,y), корпус вдоль оси, угол a
+  function probeSvg(color, x, y, a, dragging) {
+    var body = color === 'red' ? '#e5352b' : '#15181c', edge = color === 'red' ? '#ff8a80' : '#8a939c';
+    return '<g class="probe' + (dragging ? ' drag' : '') + '" data-drag="' + color + '" transform="translate(' + x + ' ' + y + ') rotate(' + a + ')">' +
+      '<circle r="26" cy="40" fill="transparent"/>' +
+      '<line x1="0" y1="0" x2="0" y2="40" stroke="#dfe3e8" stroke-width="3" stroke-linecap="round"/>' +
+      '<rect x="-7" y="38" width="14" height="10" rx="2" fill="' + edge + '"/>' +
+      '<rect x="-8" y="47" width="16" height="52" rx="6" fill="' + body + '" stroke="' + edge + '" stroke-width="1.5"/>' +
+      '<line x1="-4" y1="58" x2="4" y2="58" stroke="' + edge + '"/><line x1="-4" y1="64" x2="4" y2="64" stroke="' + edge + '"/>' +
+      '<path d="M0 99 Q0 120 ' + (color === 'red' ? -14 : 14) + ' 132" fill="none" stroke="' + body + '" stroke-width="4"/></g>';
+  }
+  function probeAngle(side, color) {
+    if (side === 'l') return color === 'red' ? 145 : 35;
+    if (side === 'r') return color === 'red' ? -145 : -35;
+    var base = side === 't' ? 180 : 0;
+    return base + (color === 'red' ? 22 : -22);
+  }
   function lookView(comp, st, quiz) {
     var L = MC.look(comp);
     if (!L) return '<div class="comp-vis">' + MC.symbol(comp.sym) + '</div>';
@@ -143,12 +162,23 @@
         if (r.bad) {
           badPins[ms.a] = badPins[ms.b] = 1;
           var okm = M.measure(comp, M.okState(comp), r.mode, ms.a, ms.b, st.on);
-          var a2 = ms.a, b2 = ms.b;
-          badList.push('<li><span class="mtag">' + MC.modes[r.mode].name + '</span> <b>' + esc(pinName(comp, a2)) + ' ↔ ' + esc(pinName(comp, b2)) + '</b>: <span class="vbad">' + esc((r.m.val + ' ' + (r.m.unit || '')).trim()) + '</span> <span class="vok">норма ' + esc((okm.val + ' ' + (okm.unit || '')).trim()) + '</span></li>');
+          badList.push('<li><span class="mtag">' + MC.modes[r.mode].name + '</span> <b>' + L.num[ms.a] + '–' + L.num[ms.b] + '</b> ' + esc(pinName(comp, ms.a)) + ' ↔ ' + esc(pinName(comp, ms.b)) + ': <span class="vbad">' + esc((r.m.val + ' ' + (r.m.unit || '')).trim()) + '</span> <span class="vok">норма ' + esc((okm.val + ' ' + (okm.unit || '')).trim()) + '</span></li>');
         }
       });
     }
-    // подписи выводов: короткие; у тесных нижних — id
+    // группы (обмотки/контакты)
+    var gcol = {}, frames = '', gleg = [];
+    L.groups.forEach(function (g, gi) {
+      var ids = g.slice(0, -1), name = g[g.length - 1], col = GCOL[gi % GCOL.length];
+      var pts = ids.map(function (id) { return L.pos[id]; }).filter(Boolean);
+      if (!pts.length) return;
+      ids.forEach(function (id) { gcol[id] = col; });
+      var x0 = Math.min.apply(null, pts.map(function (p) { return p[0]; })) - 17, x1 = Math.max.apply(null, pts.map(function (p) { return p[0]; })) + 17;
+      var y0 = Math.min.apply(null, pts.map(function (p) { return p[1]; })) - 17, y1 = Math.max.apply(null, pts.map(function (p) { return p[1]; })) + 17;
+      frames += '<rect x="' + x0 + '" y="' + y0 + '" width="' + (x1 - x0) + '" height="' + (y1 - y0) + '" rx="12" class="gframe" style="stroke:' + col + '"/>';
+      gleg.push('<span class="gl"><i style="background:' + col + '"></i>' + ids.map(function (id) { return L.num[id]; }).join('–') + ' ' + esc(name) + '</span>');
+    });
+    // подписи выводов
     var bottoms = comp.pins.filter(function (p) { return L.pos[p.id] && L.pos[p.id][2] === 'b'; }).sort(function (a, b) { return L.pos[a.id][0] - L.pos[b.id][0]; });
     var crowded = {}, stagger = {};
     bottoms.forEach(function (p, i) {
@@ -156,26 +186,32 @@
       if (gap < 60 && shortPin(p).length > 4) crowded[p.id] = 1;
       if (i % 2 === 1 && gap < 95) stagger[p.id] = 16;
     });
-    var abbr = [];
     var pins = comp.pins.map(function (p) {
       var pos = L.pos[p.id]; if (!pos) return '';
-      var cls = st.red === p.id ? ' pr-red' : st.black === p.id ? ' pr-black' : '';
-      var lbl = crowded[p.id] ? p.id : shortPin(p);
-      if (crowded[p.id]) abbr.push('<b>' + esc(p.id) + '</b> — ' + esc(p.name));
+      var lbl = crowded[p.id] || (gcol[p.id] && shortPin(p).length > 4) ? '' : shortPin(p);
       var lx = pos[0], ly = pos[1], anchor = 'middle';
-      if (pos[2] === 'b') ly += 24 + (stagger[p.id] || 0); else if (pos[2] === 't') ly -= 14; else if (pos[2] === 'l') { lx -= 14; ly += 4; anchor = 'end'; } else { lx += 14; ly += 4; anchor = 'start'; }
-      return '<g class="pinpick" data-pick="' + p.id + '"><circle cx="' + pos[0] + '" cy="' + pos[1] + '" r="16" class="hit"/>' +
-        (badPins[p.id] ? '<circle cx="' + pos[0] + '" cy="' + pos[1] + '" r="13" class="pbad"/>' : '') +
-        '<circle cx="' + pos[0] + '" cy="' + pos[1] + '" r="8" class="pdot' + cls + '"/>' +
-        '<text x="' + lx + '" y="' + ly + '" text-anchor="' + anchor + '" class="plbl' + (badPins[p.id] ? ' bad' : '') + '">' + esc(lbl) + '</text></g>';
+      if (pos[2] === 'b') ly += 28 + (stagger[p.id] || 0); else if (pos[2] === 't') ly -= 18; else if (pos[2] === 'l') { lx -= 18; ly += 4; anchor = 'end'; } else { lx += 18; ly += 4; anchor = 'start'; }
+      return '<g class="pinpick" data-pick="' + p.id + '"><circle cx="' + pos[0] + '" cy="' + pos[1] + '" r="20" class="hit"/>' +
+        (badPins[p.id] ? '<circle cx="' + pos[0] + '" cy="' + pos[1] + '" r="15" class="pbad"/>' : '') +
+        '<circle cx="' + pos[0] + '" cy="' + pos[1] + '" r="11" class="pdot" style="stroke:' + (gcol[p.id] || '#11151a') + '"/>' +
+        '<text x="' + pos[0] + '" y="' + (pos[1] + 4.5) + '" class="pnum">' + L.num[p.id] + '</text>' +
+        (lbl ? '<text x="' + lx + '" y="' + ly + '" text-anchor="' + anchor + '" class="plbl' + (badPins[p.id] ? ' bad' : '') + '">' + esc(lbl) + '</text>' : '') + '</g>';
     }).join('');
+    // щупы
+    var probes = ['black', 'red'].map(function (color) {
+      var id = st[color], pos = id && L.pos[id];
+      if (pos) return probeSvg(color, pos[0], pos[1], probeAngle(pos[2], color));
+      return probeSvg(color, TRAY[color][0], TRAY[color][1], -90);
+    }).join('');
+    var tray = '<rect x="214" y="240" width="166" height="58" rx="10" class="tray"/><text x="190" y="274" class="traytx" text-anchor="end">щупы →</text>';
     var legend;
-    if (quiz) legend = '<div class="legend">Нажимайте на выводы: первый — красный щуп, второй — чёрный</div>';
+    if (quiz) legend = '';
     else if (st.state.ok) legend = '<div class="legend"><span><i class="lg ok"></i>между этими выводами всё в норме</span></div>';
     else if (badList.length) legend = '<div class="faultlist"><div class="fl-h">✗ ' + esc(st.state.name) + ' — где видно:</div><ul>' + badList.join('') + '</ul></div>';
     else legend = '<div class="faultlist warn"><div class="fl-h">≈ ' + esc(st.state.name) + '</div><p>Мультиметром не видно ни на одной паре выводов' + (comp.toggle && !st.on ? ' (попробуйте «' + esc(comp.toggle.label) + '»)' : '') + '. ' + esc(st.state.why || '') + '</p></div>';
-    return '<div class="look"><svg viewBox="-60 -24 440 268" class="looksvg">' + L.g + arcs + pins + '</svg>' +
-      (abbr.length ? '<div class="abbr">' + abbr.join(' · ') + '</div>' : '') + legend + '</div>';
+    return '<div class="look"><div class="look-hint">Перетащите <b class="tred">красный</b> и <b class="tblack">чёрный</b> щупы на ножки — или нажимайте на ножки по очереди</div>' +
+      '<svg viewBox="-60 -24 440 330" class="looksvg">' + L.g + frames + arcs + pins + tray + probes + '</svg>' +
+      (gleg.length ? '<div class="glegend">' + gleg.join('') + '</div>' : '') + legend + '</div>';
   }
 
   // ---------- Мультиметр (общий виджет) ----------
@@ -205,9 +241,10 @@
       var modeBtns = comp.modes.map(function (md) {
         return '<button class="mode' + (md === st.mode ? ' on' : '') + '" data-mode="' + md + '" title="' + MC.modes[md].title + '">' + MC.modes[md].name + '</button>';
       }).join('');
+      var LK = MC.look(comp);
       var pinsRow = function (color) {
         return comp.pins.map(function (p) {
-          return '<button class="pin ' + color + (st[color] === p.id ? ' sel' : '') + '" data-probe="' + color + '" data-pin="' + p.id + '">' + esc(p.name) + '</button>';
+          return '<button class="pin ' + color + (st[color] === p.id ? ' sel' : '') + '" data-probe="' + color + '" data-pin="' + p.id + '">' + (LK && LK.num[p.id] ? '<b>' + LK.num[p.id] + '</b> ' : '') + esc(p.name) + '</button>';
         }).join('');
       };
       var beep = m.beep === true ? '<span class="beep on">🔊</span>' : m.beep === 'jitter' ? '<span class="beep jit">🔊</span>' : '<span class="beep">🔊</span>';
@@ -230,15 +267,46 @@
           '<div class="modes">' + modeBtns + '</div>' +
         '</div>' +
         lookView(comp, st, opts.quiz) +
-        '<div class="probes">' +
+        '<div class="actions"><button class="swap" data-swap="1">⇄ Поменять щупы</button>' + toggle +
+          '<button class="toggle' + (st.board ? ' on' : '') + '" data-board="1" title="Компонент впаян, параллельно стоит цепь ~1 кОм">' + (st.board ? '✓ ' : '') + 'На плате</button></div>' +
+        '<details class="fold probes"' + (pinsOpen ? ' open' : '') + '><summary>🔢 Выбрать выводы кнопками</summary><div class="fold-b">' +
           '<div class="probe-lbl"><span class="dot red"></span>Красный щуп (+)</div><div class="pins">' + pinsRow('red') + '</div>' +
           '<div class="probe-lbl"><span class="dot black"></span>Чёрный щуп (COM)</div><div class="pins">' + pinsRow('black') + '</div>' +
-          '<div class="actions"><button class="swap" data-swap="1">⇄ Щупы</button>' + toggle +
-          '<button class="toggle' + (st.board ? ' on' : '') + '" data-board="1" title="Компонент впаян, параллельно стоит цепь ~1 кОм">' + (st.board ? '✓ ' : '') + 'На плате</button></div>' +
-        '</div>';
+        '</div></details>';
     }
-    var nextProbe = 'red';
+    var nextProbe = 'red', pinsOpen = false, drag = null;
+    function svgPt(svg, e) { var p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY; return p.matrixTransform(svg.getScreenCTM().inverse()); }
+    root.addEventListener('toggle', function (e) { if (e.target.classList && e.target.classList.contains('probes')) pinsOpen = e.target.open; }, true);
+    root.addEventListener('touchstart', function (e) { if (e.target.closest && e.target.closest('[data-drag]')) e.preventDefault(); }, { passive: false });
+    root.addEventListener('pointerdown', function (e) {
+      var g = e.target.closest('[data-drag]'); if (!g) return;
+      e.preventDefault();
+      var svg = g.ownerSVGElement;
+      drag = { color: g.getAttribute('data-drag'), el: g, svg: svg, moved: false };
+      g.classList.add('drag');
+      svg.appendChild(g);
+      function move(ev) {
+        var p = svgPt(svg, ev); drag.moved = true;
+        g.setAttribute('transform', 'translate(' + p.x + ' ' + p.y + ') rotate(0)');
+        var L = MC.look(comp), best = null, bd = 34;
+        Object.keys(L.pos).forEach(function (id) { var q = L.pos[id], d = Math.hypot(q[0] - p.x, q[1] - p.y); if (d < bd) { bd = d; best = id; } });
+        svg.querySelectorAll('.pinpick').forEach(function (n) { n.classList.toggle('near', n.getAttribute('data-pick') === best); });
+        drag.target = best;
+      }
+      function up() {
+        window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up);
+        var d = drag; drag = null;
+        if (!d.moved) { render(); return; }
+        var other = d.color === 'red' ? 'black' : 'red';
+        st[d.color] = d.target || null;
+        if (d.target && st[other] === d.target) st[other] = null;
+        nextProbe = other;
+        render(); Sound.play(lastM && lastM.beep);
+      }
+      window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+    });
     root.addEventListener('click', function (e) {
+      if (e.target.closest('[data-drag]')) return;
       var pk = e.target.closest('[data-pick]');
       if (pk) {
         var id = pk.getAttribute('data-pick'), other = nextProbe === 'red' ? 'black' : 'red';

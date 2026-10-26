@@ -307,3 +307,19 @@ h2.sect { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; col
 .cres b { color: var(--acc); }
 .rt tr.hl td { color: var(--acc); }
 .tools { display: none; }
+/* ---------- v5: перетаскиваемые щупы ---------- */
+.look-hint { font-size: 12.5px; color: var(--mut); text-align: center; padding: 4px 8px 0; }
+.looksvg { max-height: 420px; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.probe { cursor: grab; touch-action: none; }
+.probe.drag { cursor: grabbing; filter: drop-shadow(0 6px 8px rgba(0, 0, 0, .6)); }
+.pdot { fill: #e8ecf0; stroke-width: 3; }
+.pnum { fill: #11151a; font: 800 12px system-ui, sans-serif; text-anchor: middle; pointer-events: none; }
+.pinpick.near .pdot { fill: var(--acc); }
+.gframe { fill: none; stroke-width: 2; stroke-dasharray: 6 4; opacity: .85; }
+.glegend { display: flex; flex-wrap: wrap; gap: 6px 14px; justify-content: center; font-size: 12.5px; color: var(--tx); padding: 2px 8px 6px; }
+.gl i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.tray { fill: rgba(255, 255, 255, .03); stroke: var(--line); stroke-width: 1.5; stroke-dasharray: 5 4; }
+.traytx { fill: var(--mut); font: 600 11px system-ui, sans-serif; text-anchor: middle; }
+.fold.probes { margin-top: 0; }
+.pin b { color: var(--acc); margin-right: 2px; }
+.pin.sel b { color: #fff; }

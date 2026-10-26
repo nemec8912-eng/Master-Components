@@ -1,5 +1,5 @@
 /* Офлайн-кэш Master Components. При обновлении файлов увеличивайте VERSION. */
-var VERSION = 'mc-v4';
+var VERSION = 'mc-v5';
 var FILES = [
   './', 'index.html', 'css/style.css', 'manifest.webmanifest',
   'js/data/00-core.js', 'js/data/10-passive.js', 'js/data/20-semi.js', 'js/data/30-wound.js',
