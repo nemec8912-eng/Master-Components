@@ -45,13 +45,29 @@
   }
 
   // Полное измерение: учитывает режим прозвонки и свечение светодиода
-  function measure(comp, state, mode, red, black, on) {
+  // Режим «на плате»: параллельно выводам стоит цепь ~1 кОм (резистор, обмотка, другие компоненты)
+  var BOARD_R = 1000;
+  function boardify(mode, raw) {
+    if (mode === 'ohm') {
+      if (raw === 'OL') return BOARD_R;
+      if (typeof raw === 'number') return raw * BOARD_R / (raw + BOARD_R);
+      if (typeof raw === 'string' && raw.indexOf('OL') >= 0) return BOARD_R;
+      return raw;
+    }
+    if (mode === 'diode') {
+      if (raw === 'OL') return 1.0; // тестовый ток ~1 мА через 1 кОм
+      return raw;
+    }
+    return raw;
+  }
+  function measure(comp, state, mode, red, black, on, board) {
+    var get = board ? function (c, s, m, r, b, o) { return boardify(m, lookup(c, s, m, r, b, o)); } : lookup;
     if (!red || !black) return { val: '- - -', unit: '', idle: true };
     if (red === black) return { val: '0.00', unit: 'Ω', same: true, raw: 0 };
     var raw, out;
     if (mode === 'beep') {
       if (comp.modes.indexOf('ohm') >= 0) {
-        raw = lookup(comp, state, 'ohm', red, black, on);
+        raw = get(comp, state, 'ohm', red, black, on);
         if (typeof raw === 'number') {
           if (raw < 1000) { out = format('ohm', raw); out.beep = raw < 50; }
           else out = { val: 'OL', unit: '' };
@@ -59,14 +75,14 @@
           out = { val: raw, unit: '', text: true, beep: 'jitter' };
         } else out = { val: 'OL', unit: '' };
       } else {
-        raw = lookup(comp, state, 'diode', red, black, on);
+        raw = get(comp, state, 'diode', red, black, on);
         if (typeof raw === 'number' && raw < 0.1) { out = format('diode', raw); out.unit = ''; out.beep = true; }
         else out = { val: 'OL', unit: '' };
       }
       out.raw = raw;
       return out;
     }
-    raw = lookup(comp, state, mode, red, black, on);
+    raw = get(comp, state, mode, red, black, on);
     out = format(mode, raw);
     out.raw = raw;
     if (mode === 'diode') {
@@ -80,15 +96,15 @@
   function same(a, b) {
     if (a === b) return true;
     if (typeof a === 'number' && typeof b === 'number') {
-      if (Math.abs(a) < 0.05 && Math.abs(b) < 0.05) return true;
+      if (Math.abs(a) < 0.01 && Math.abs(b) < 0.01) return true;
       return Math.abs(a - b) / Math.max(Math.abs(a), Math.abs(b)) < 0.12;
     }
     return false;
   }
 
   // Текст «нормального» показания
-  function expectedText(comp, mode, red, black, on) {
-    var m = measure(comp, okState(comp), mode, red, black, on);
+  function expectedText(comp, mode, red, black, on, board) {
+    var m = measure(comp, okState(comp), mode, red, black, on, board);
     return (m.val + (m.unit ? ' ' + m.unit : '')).trim();
   }
 

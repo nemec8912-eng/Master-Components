@@ -66,11 +66,15 @@
       '<p class="lead">Справочник мастера: какие бывают компоненты, как их прозванивать и что показывает мультиметр у исправных и у неисправных.</p>' +
       '<div class="search"><input id="q" type="search" placeholder="Поиск: диод, ТЭН, симистор…" autocomplete="off"></div>' +
       '<div id="results"></div>' +
-      '<h2 class="sect">Инструменты</h2>' +
-      '<div class="tools">' +
-        toolCard('#/quiz', '🎯', 'Найди неисправность', 'Тренажёр: компонент со скрытой поломкой, меряйте и ставьте диагноз') +
-        toolCard('#/resistor', '🌈', 'Калькулятор резисторов', 'Цветовая маркировка 4, 5 и 6 полос, и обратно') +
-        toolCard('#/smd', '🔢', 'SMD-коды', 'Резисторы 103, 4R7, 01C и коды конденсаторов 104') +
+      '<h2 class="sect">Тренажёры</h2>' +
+      '<div class="tiles">' +
+        tile('#/quiz', '🎯', 'Найди неисправность') + tile('#/nodes', '🧩', 'Схемы узлов') +
+      '</div>' +
+      '<h2 class="sect">Справочники и калькуляторы</h2>' +
+      '<div class="tiles t3">' +
+        tile('#/resistor', '🌈', 'Цвета резисторов') + tile('#/smd', '🔢', 'SMD-коды') + tile('#/calcs', '🧮', 'Калькуляторы') +
+        tile('#/pinouts', '📌', 'Цоколёвки') + tile('#/analogs', '🔁', 'Аналоги и замена') + tile('#/ntc', '🌡', 'Датчики NTC') +
+        tile('#/voltage', '⚡', 'Под напряжением') +
       '</div>' +
       '<h2 class="sect">Категории</h2><div class="cats">';
     MC.categories.forEach(function (c) {
@@ -87,6 +91,7 @@
       res.innerHTML = found.length ? '<div class="list">' + found.map(compRow).join('') + '</div>' : '<p class="muted">Ничего не найдено.</p>';
     });
   }
+  function tile(href, ic, t) { return '<a class="tile" href="' + href + '"><span>' + ic + '</span><b>' + t + '</b></a>'; }
   function toolCard(href, ic, t, d) { return '<a class="tool" href="' + href + '"><span class="tool-ic">' + ic + '</span><b>' + t + '</b><small>' + d + '</small></a>'; }
   function compRow(c) {
     return '<a class="row" href="#/c/' + c.id + '"><span class="row-sym">' + MC.symbol(c.sym) + '</span><span class="row-tx"><b>' + esc(c.name) + '</b><small>' + esc(c.sub) + '</small></span><span class="chev">›</span></a>';
@@ -99,49 +104,152 @@
     $app.innerHTML = header(c.name, '#/') + '<main class="wrap"><p class="lead">' + esc(c.desc) + '</p><div class="list">' + list.map(compRow).join('') + '</div></main>';
   }
 
+  // ---------- Реалистичный рисунок с выводами и линиями неисправностей ----------
+  function pairStatus(comp, state, a, b, on, prefMode) {
+    var ok = M.okState(comp), modes = comp.modes.filter(function (m) { return m !== 'beep'; });
+    if (prefMode && prefMode !== 'beep') modes = [prefMode].concat(modes.filter(function (m) { return m !== prefMode; }));
+    for (var i = 0; i < modes.length; i++) {
+      var dirs = [[a, b], [b, a]];
+      for (var j = 0; j < 2; j++) {
+        var x = M.measure(comp, state, modes[i], dirs[j][0], dirs[j][1], on), y = M.measure(comp, ok, modes[i], dirs[j][0], dirs[j][1], on);
+        if (x.val !== y.val && !M.same(x.raw, y.raw)) return { bad: true, mode: modes[i], m: x };
+        if (typeof x.raw === 'string' && x.raw !== y.raw) return { bad: true, mode: modes[i], m: x };
+      }
+    }
+    return { bad: false };
+  }
+  function shortPin(p) {
+    var n = p.name.replace(/\s*\(([^)]*)\)\s*/, function (m, inner) { return inner.length <= 3 ? '|' + inner : ''; });
+    if (n.indexOf('|') >= 0) n = n.split('|')[1];
+    return n.trim();
+  }
+  function lookView(comp, st, quiz) {
+    var L = MC.look(comp);
+    if (!L) return '<div class="comp-vis">' + MC.symbol(comp.sym) + '</div>';
+    var arcs = '', badList = [], seen = {}, badPins = {};
+    if (!quiz) {
+      M.measurementList(comp).forEach(function (ms) {
+        var key = [ms.a, ms.b].sort().join('|');
+        if (seen[key] || !L.pos[ms.a] || !L.pos[ms.b]) return;
+        seen[key] = 1;
+        var p = L.pos[ms.a], q = L.pos[ms.b];
+        var r = pairStatus(comp, st.state, ms.a, ms.b, st.on, st.mode);
+        var mx = (p[0] + q[0]) / 2, my = (p[1] + q[1]) / 2, dx = q[0] - p[0], dy = q[1] - p[1], len = Math.sqrt(dx * dx + dy * dy) || 1;
+        var nx = -dy / len, ny = dx / len, bulge = 14 + len * 0.22 + (p[2] === 'b' && q[2] === 'b' ? 40 : 0) + (p[2] === 't' && q[2] === 't' ? 24 : 0);
+        if ((mx + nx * bulge - 160) * (mx + nx * bulge - 160) + (my + ny * bulge - 100) * (my + ny * bulge - 100) < (mx - nx * bulge - 160) * (mx - nx * bulge - 160) + (my - ny * bulge - 100) * (my - ny * bulge - 100)) { nx = -nx; ny = -ny; }
+        var cx = mx + nx * bulge, cy = my + ny * bulge;
+        var active = [st.red, st.black].sort().join('|') === key;
+        arcs += '<path d="M' + p[0] + ' ' + p[1] + ' Q' + cx + ' ' + cy + ' ' + q[0] + ' ' + q[1] + '" class="arc ' + (r.bad ? 'bad' : 'ok') + (active ? ' act' : '') + '"/>';
+        if (r.bad) {
+          badPins[ms.a] = badPins[ms.b] = 1;
+          var okm = M.measure(comp, M.okState(comp), r.mode, ms.a, ms.b, st.on);
+          var a2 = ms.a, b2 = ms.b;
+          badList.push('<li><span class="mtag">' + MC.modes[r.mode].name + '</span> <b>' + esc(pinName(comp, a2)) + ' ↔ ' + esc(pinName(comp, b2)) + '</b>: <span class="vbad">' + esc((r.m.val + ' ' + (r.m.unit || '')).trim()) + '</span> <span class="vok">норма ' + esc((okm.val + ' ' + (okm.unit || '')).trim()) + '</span></li>');
+        }
+      });
+    }
+    // подписи выводов: короткие; у тесных нижних — id
+    var bottoms = comp.pins.filter(function (p) { return L.pos[p.id] && L.pos[p.id][2] === 'b'; }).sort(function (a, b) { return L.pos[a.id][0] - L.pos[b.id][0]; });
+    var crowded = {}, stagger = {};
+    bottoms.forEach(function (p, i) {
+      var gap = Math.min(i > 0 ? L.pos[p.id][0] - L.pos[bottoms[i - 1].id][0] : 999, i < bottoms.length - 1 ? L.pos[bottoms[i + 1].id][0] - L.pos[p.id][0] : 999);
+      if (gap < 60 && shortPin(p).length > 4) crowded[p.id] = 1;
+      if (i % 2 === 1 && gap < 95) stagger[p.id] = 16;
+    });
+    var abbr = [];
+    var pins = comp.pins.map(function (p) {
+      var pos = L.pos[p.id]; if (!pos) return '';
+      var cls = st.red === p.id ? ' pr-red' : st.black === p.id ? ' pr-black' : '';
+      var lbl = crowded[p.id] ? p.id : shortPin(p);
+      if (crowded[p.id]) abbr.push('<b>' + esc(p.id) + '</b> — ' + esc(p.name));
+      var lx = pos[0], ly = pos[1], anchor = 'middle';
+      if (pos[2] === 'b') ly += 24 + (stagger[p.id] || 0); else if (pos[2] === 't') ly -= 14; else if (pos[2] === 'l') { lx -= 14; ly += 4; anchor = 'end'; } else { lx += 14; ly += 4; anchor = 'start'; }
+      return '<g class="pinpick" data-pick="' + p.id + '"><circle cx="' + pos[0] + '" cy="' + pos[1] + '" r="16" class="hit"/>' +
+        (badPins[p.id] ? '<circle cx="' + pos[0] + '" cy="' + pos[1] + '" r="13" class="pbad"/>' : '') +
+        '<circle cx="' + pos[0] + '" cy="' + pos[1] + '" r="8" class="pdot' + cls + '"/>' +
+        '<text x="' + lx + '" y="' + ly + '" text-anchor="' + anchor + '" class="plbl' + (badPins[p.id] ? ' bad' : '') + '">' + esc(lbl) + '</text></g>';
+    }).join('');
+    var legend;
+    if (quiz) legend = '<div class="legend">Нажимайте на выводы: первый — красный щуп, второй — чёрный</div>';
+    else if (st.state.ok) legend = '<div class="legend"><span><i class="lg ok"></i>между этими выводами всё в норме</span></div>';
+    else if (badList.length) legend = '<div class="faultlist"><div class="fl-h">✗ ' + esc(st.state.name) + ' — где видно:</div><ul>' + badList.join('') + '</ul></div>';
+    else legend = '<div class="faultlist warn"><div class="fl-h">≈ ' + esc(st.state.name) + '</div><p>Мультиметром не видно ни на одной паре выводов' + (comp.toggle && !st.on ? ' (попробуйте «' + esc(comp.toggle.label) + '»)' : '') + '. ' + esc(st.state.why || '') + '</p></div>';
+    return '<div class="look"><svg viewBox="-60 -24 440 268" class="looksvg">' + L.g + arcs + pins + '</svg>' +
+      (abbr.length ? '<div class="abbr">' + abbr.join(' · ') + '</div>' : '') + legend + '</div>';
+  }
+
   // ---------- Мультиметр (общий виджет) ----------
-  // opts: {comp, state, quiz:boolean, onChange}
+  // opts: {state, quiz:boolean, states:boolean (кнопки состояний внутри), onChange}
   function meterWidget(root, comp, opts) {
-    var st = { mode: comp.modes[0], red: null, black: null, on: false, state: opts.state || M.okState(comp) };
+    var st = { mode: comp.modes[0], red: null, black: null, on: false, board: false, state: opts.state || M.okState(comp) };
     var lastM = null;
+    function txt(m) { return (m.val + (m.unit ? ' ' + m.unit : '')).trim(); }
+    function verdict(m) {
+      if (m.idle) return '<div class="li hint">Выберите выводы для <b>красного</b> и <b>чёрного</b> щупов</div>';
+      if (m.same) return '<div class="li hint">Оба щупа на одном выводе — выберите разные</div>';
+      if (opts.quiz) return '<div class="li hint">Состояние скрыто — меряйте и ставьте диагноз</div>';
+      var okM = M.measure(comp, M.okState(comp), st.mode, st.red, st.black, st.on, st.board);
+      var norm = '<div class="li norm"><span>НОРМА:</span> <b>' + esc(txt(okM)) + '</b></div>';
+      if (st.state.ok) return norm + '<div class="li vd good">✓ ИСПРАВЕН — значение правильное</div>';
+      var isSame = M.same(m.raw, okM.raw) && !(typeof m.raw === 'string' && m.raw !== okM.raw);
+      if (isSame) {
+        return norm + '<div class="li vd warn">≈ ' + esc(st.state.name.toUpperCase()) + ' — здесь не видно</div>' +
+          '<div class="li why">' + (st.board ? 'На плате параллельная цепь маскирует неисправность — выпаяйте один вывод и перемерьте. ' : 'Попробуйте другие выводы, другой режим' + (comp.toggle ? ' или «' + esc(comp.toggle.label) + '»' : '') + '. ') + esc(st.state.why || '') + '</div>';
+      }
+      return norm + '<div class="li vd bad">✗ НЕИСПРАВЕН: ' + esc(st.state.name.toUpperCase()) + '</div>' +
+        (st.state.why ? '<div class="li why">' + esc(st.state.why) + '</div>' : '');
+    }
     function render() {
-      var m = M.measure(comp, st.state, st.mode, st.red, st.black, st.on);
+      var m = M.measure(comp, st.state, st.mode, st.red, st.black, st.on, st.board);
       lastM = m;
       var modeBtns = comp.modes.map(function (md) {
         return '<button class="mode' + (md === st.mode ? ' on' : '') + '" data-mode="' + md + '" title="' + MC.modes[md].title + '">' + MC.modes[md].name + '</button>';
       }).join('');
       var pinsRow = function (color) {
         return comp.pins.map(function (p) {
-          var sel = st[color] === p.id;
-          return '<button class="pin ' + color + (sel ? ' sel' : '') + '" data-probe="' + color + '" data-pin="' + p.id + '">' + esc(p.name) + '</button>';
+          return '<button class="pin ' + color + (st[color] === p.id ? ' sel' : '') + '" data-probe="' + color + '" data-pin="' + p.id + '">' + esc(p.name) + '</button>';
         }).join('');
       };
       var beep = m.beep === true ? '<span class="beep on">🔊</span>' : m.beep === 'jitter' ? '<span class="beep jit">🔊</span>' : '<span class="beep">🔊</span>';
-      var glow = m.glow ? '<div class="glow ' + m.glow + '">● светодиод ' + (m.glow === 'dim' ? 'еле светится' : 'светится') + '</div>' : '';
-      var status = '';
-      if (!opts.quiz && !m.idle) status = statusBox(comp, st, m);
-      if (m.idle) status = '<div class="status idle">Выберите, куда ставить <b class="tred">красный</b> и <b class="tblack">чёрный</b> щупы.</div>';
-      if (m.same) status = '<div class="status idle">Оба щупа на одном выводе — выберите разные выводы.</div>';
+      var glow = m.glow ? '<span class="glow ' + m.glow + '">● ' + (m.glow === 'dim' ? 'еле светится' : 'светится') + '</span>' : '';
+      var probes = st.red && st.black && st.red !== st.black ? '<span class="lcd-pr"><i class="pr-r">+</i>' + esc(pinName(comp, st.red)) + ' <i class="pr-b">COM</i>' + esc(pinName(comp, st.black)) + '</span>' : '';
+      var states = opts.states ? '<div class="states in">' + comp.states.map(function (s) {
+        return '<button class="stbtn' + (s.ok ? ' okb' : '') + (s === st.state ? ' on' : '') + '" data-st="' + s.id + '">' + esc(s.name) + '</button>';
+      }).join('') + '</div>' : '';
       var toggle = comp.toggle ? '<button class="toggle' + (st.on ? ' on' : '') + '" data-toggle="1">' + (st.on ? '✓ ' : '') + esc(comp.toggle.label) + '</button>' : '';
 
-      root.innerHTML =
+      root.innerHTML = states +
         '<div class="meter">' +
-          '<div class="meter-top"><span class="brand">MASTER DT-830</span><span class="mt-r"><button class="mute" data-mute="1" aria-label="Звук прозвонки">' + (Sound.muted() ? '🔇 звук выкл' : '🔈 звук вкл') + '</button><span class="auto">AUTO</span></span></div>' +
-          '<div class="lcd' + (m.text ? ' txt' : '') + '"><span class="lcd-mode">' + (MC.modes[st.mode].lcd || MC.modes[st.mode].name) + '</span>' + beep +
-            '<span class="lcd-val">' + esc(m.val) + '</span><span class="lcd-unit">' + esc(m.unit || '') + '</span></div>' +
+          '<div class="meter-top"><span class="brand">MASTER DT-830</span><span class="mt-r"><button class="mute" data-mute="1" aria-label="Звук прозвонки">' + (Sound.muted() ? '🔇 выкл' : '🔈 звук') + '</button><span class="auto">AUTO</span></span></div>' +
+          '<div class="lcd">' +
+            '<div class="lcd-r1"><span class="lcd-mode">' + (MC.modes[st.mode].lcd || MC.modes[st.mode].name) + '</span>' + beep + (st.board ? '<span class="pcb">НА ПЛАТЕ</span>' : '') + glow + '</div>' +
+            '<div class="lcd-main' + (m.text ? ' txt' : '') + '"><span class="lcd-val">' + esc(m.val) + '</span><span class="lcd-unit">' + esc(m.unit || '') + '</span></div>' +
+            probes +
+            '<div class="lcd-info">' + verdict(m) + '</div>' +
+          '</div>' +
           '<div class="modes">' + modeBtns + '</div>' +
-          '<div class="mode-title">' + MC.modes[st.mode].title + '</div>' +
         '</div>' +
-        glow +
-        '<div class="comp-vis">' + MC.symbol(comp.sym) + '</div>' +
-        '<div class="probe-lbl"><span class="dot red"></span>Красный щуп (+)</div><div class="pins">' + pinsRow('red') + '</div>' +
-        '<div class="probe-lbl"><span class="dot black"></span>Чёрный щуп (COM)</div><div class="pins">' + pinsRow('black') + '</div>' +
-        '<div class="actions"><button class="swap" data-swap="1">⇄ Поменять щупы</button>' + toggle + '</div>' +
-        status;
+        lookView(comp, st, opts.quiz) +
+        '<div class="probes">' +
+          '<div class="probe-lbl"><span class="dot red"></span>Красный щуп (+)</div><div class="pins">' + pinsRow('red') + '</div>' +
+          '<div class="probe-lbl"><span class="dot black"></span>Чёрный щуп (COM)</div><div class="pins">' + pinsRow('black') + '</div>' +
+          '<div class="actions"><button class="swap" data-swap="1">⇄ Щупы</button>' + toggle +
+          '<button class="toggle' + (st.board ? ' on' : '') + '" data-board="1" title="Компонент впаян, параллельно стоит цепь ~1 кОм">' + (st.board ? '✓ ' : '') + 'На плате</button></div>' +
+        '</div>';
     }
+    var nextProbe = 'red';
     root.addEventListener('click', function (e) {
+      var pk = e.target.closest('[data-pick]');
+      if (pk) {
+        var id = pk.getAttribute('data-pick'), other = nextProbe === 'red' ? 'black' : 'red';
+        st[nextProbe] = id; if (st[other] === id) st[other] = null;
+        nextProbe = other;
+        render(); Sound.play(lastM && lastM.beep); return;
+      }
       var b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.mute) { Sound.toggle(); render(); return; }
       if (b.dataset.mode) st.mode = b.dataset.mode;
+      if (b.dataset.st) st.state = comp.states.find(function (s) { return s.id === b.dataset.st; });
       if (b.dataset.probe) {
         var other = b.dataset.probe === 'red' ? 'black' : 'red';
         st[b.dataset.probe] = b.dataset.pin;
@@ -149,34 +257,24 @@
       }
       if (b.dataset.swap) { var t = st.red; st.red = st.black; st.black = t; }
       if (b.dataset.toggle) st.on = !st.on;
-      if (b.dataset.mute) { Sound.toggle(); render(); return; }
+      if (b.dataset.board) st.board = !st.board;
       render();
       Sound.play(lastM && lastM.beep);
       if (opts.onChange) opts.onChange(st);
     });
+    if (comp.pins.length >= 2) { st.red = comp.pins[0].id; st.black = comp.pins[1].id; }
     render();
-    // Автовыбор первой пары щупов
-    if (comp.pins.length >= 2) { st.red = comp.pins[0].id; st.black = comp.pins[1].id; render(); }
     return {
       setState: function (s) { st.state = s; render(); Sound.play(lastM && lastM.beep); },
       get: function () { return st; }
     };
   }
 
-  function statusBox(comp, st, m) {
-    var okM = M.measure(comp, M.okState(comp), st.mode, st.red, st.black, st.on);
-    var exp = (okM.val + (okM.unit ? ' ' + okM.unit : '')).trim();
-    if (st.state.ok) {
-      return '<div class="status good"><b>✓ Правильное значение — норма.</b><span>Исправный компонент здесь показывает ' + esc(exp) + '.</span></div>';
-    }
-    var isSame = M.same(m.raw, okM.raw) && !(typeof m.raw === 'string' && m.raw !== okM.raw);
-    if (isSame) {
-      return '<div class="status warn"><b>Здесь показание как у исправного.</b><span>Эта неисправность в этой точке не видна. Попробуйте другие выводы, другой режим' + (comp.toggle ? ' или кнопку «' + esc(comp.toggle.label) + '»' : '') + '.</span>' + (st.state.why ? '<span class="why">' + esc(st.state.why) + '</span>' : '') + '</div>';
-    }
-    return '<div class="status bad"><b>✗ Неправильное значение — ' + esc(st.state.name.toLowerCase()) + '.</b><span>Должно быть: <b>' + esc(exp) + '</b></span>' + (st.state.why ? '<span class="why">' + esc(st.state.why) + '</span>' : '') + '</div>';
-  }
-
   // ---------- Страница компонента ----------
+  // Сворачиваемый блок
+  function fold(title, body, open, cls) {
+    return '<details class="fold' + (cls ? ' ' + cls : '') + '"' + (open ? ' open' : '') + '><summary>' + title + '</summary><div class="fold-b">' + body + '</div></details>';
+  }
   function viewComp(id, tab) {
     var c = compById[id]; if (!c) return viewHome();
     tab = tab || 'test';
@@ -192,30 +290,26 @@
     else renderFails($t, c);
   }
 
+  function stepsList(c) { return '<ol class="steps">' + c.howto.map(function (h) { return '<li>' + esc(h) + '</li>'; }).join('') + '</ol>'; }
+
   function renderTest($t, c) {
     var ok = M.okState(c);
     $t.innerHTML =
-      '<div class="card"><div class="lbl">Состояние компонента</div><div class="states">' +
-      c.states.map(function (s) { return '<button class="stbtn' + (s.ok ? ' okb on' : '') + '" data-st="' + s.id + '">' + esc(s.name) + '</button>'; }).join('') +
-      '</div><div class="note">Пример: ' + esc(ok.note || '') + '</div></div>' +
+      '<div class="note top-note">Выберите состояние, режим и выводы. Пример: ' + esc(ok.note || '') + '</div>' +
       '<div id="mw"></div>' +
-      '<div class="card"><div class="lbl">Как проверять</div><ol class="steps">' + c.howto.map(function (h) { return '<li>' + esc(h) + '</li>'; }).join('') + '</ol></div>' +
-      '<a class="btn wide" href="#/quiz/' + c.id + '">🎯 Потренироваться: скрытая неисправность</a>';
-    var w = meterWidget(document.getElementById('mw'), c, {});
-    $t.querySelector('.states').addEventListener('click', function (e) {
-      var b = e.target.closest('button'); if (!b) return;
-      $t.querySelectorAll('.stbtn').forEach(function (x) { x.classList.toggle('on', x === b); });
-      w.setState(c.states.find(function (s) { return s.id === b.dataset.st; }));
-    });
+      fold('📋 Как проверять', stepsList(c), false) +
+      fold('✓ Нормальные показания', readingsTable(c, ok, true), false) +
+      '<a class="btn wide" href="#/quiz/' + c.id + '">🎯 Тренировка: скрытая неисправность</a>';
+    meterWidget(document.getElementById('mw'), c, { states: true });
   }
 
   function renderInfo($t, c) {
     $t.innerHTML =
-      '<div class="card"><div class="lbl">Где встречается</div><p>' + esc(c.where) + '</p></div>' +
-      '<div class="card"><div class="lbl">Какие бывают</div><dl class="types">' + c.types.map(function (t) { return '<dt>' + esc(t[0]) + '</dt><dd>' + esc(t[1]) + '</dd>'; }).join('') + '</dl></div>' +
-      '<div class="card"><div class="lbl">Маркировка и выводы</div><p>' + esc(c.marking) + '</p></div>' +
-      '<div class="card"><div class="lbl">Нормальные показания (исправный)</div>' + readingsTable(c, M.okState(c), true) + '</div>' +
-      '<div class="card"><div class="lbl">Как проверять</div><ol class="steps">' + c.howto.map(function (h) { return '<li>' + esc(h) + '</li>'; }).join('') + '</ol></div>';
+      fold('📍 Где встречается', '<p>' + esc(c.where) + '</p>', true) +
+      fold('🧩 Какие бывают', '<dl class="types">' + c.types.map(function (t) { return '<dt>' + esc(t[0]) + '</dt><dd>' + esc(t[1]) + '</dd>'; }).join('') + '</dl>', true) +
+      fold('🏷 Маркировка и выводы', '<p>' + esc(c.marking) + '</p>', false) +
+      fold('✓ Нормальные показания', readingsTable(c, M.okState(c), true), false) +
+      fold('📋 Как проверять', stepsList(c), false);
   }
 
   function measLabel(c, ms) {
@@ -240,10 +334,9 @@
   }
 
   function renderFails($t, c) {
-    var html = '<div class="card"><div class="lbl">Типичные поломки</div><dl class="types">' + c.fails.map(function (f) { return '<dt>' + esc(f[0]) + '</dt><dd>' + esc(f[1]) + '</dd>'; }).join('') + '</dl></div>';
+    var html = fold('⚠ Типичные поломки', '<dl class="types">' + c.fails.map(function (f) { return '<dt>' + esc(f[0]) + '</dt><dd>' + esc(f[1]) + '</dd>'; }).join('') + '</dl>', true);
     c.states.forEach(function (s) {
-      html += '<div class="card ' + (s.ok ? 'okcard' : 'badcard') + '"><div class="lbl">' + (s.ok ? '✓ ' : '✗ ') + esc(s.name) + '</div>' +
-        (s.why ? '<p class="muted">' + esc(s.why) + '</p>' : '') + readingsTable(c, s, s.ok) + '</div>';
+      html += fold((s.ok ? '✓ ' : '✗ ') + esc(s.name), (s.why ? '<p class="muted">' + esc(s.why) + '</p>' : '') + readingsTable(c, s, s.ok), false, s.ok ? 'okf' : 'badf');
     });
     $t.innerHTML = html;
   }
@@ -388,9 +481,17 @@
       case 'quiz': return viewQuiz(h[1]);
       case 'resistor': return viewResistor();
       case 'smd': return viewSmd();
+      case 'nodes': return MC.extra.viewNodes();
+      case 'node': return MC.extra.viewNode(h[1]);
+      case 'pinouts': return MC.extra.viewPinouts();
+      case 'analogs': return MC.extra.viewAnalogs();
+      case 'calcs': return MC.extra.viewCalcs();
+      case 'ntc': return MC.extra.viewNtc();
+      case 'voltage': return MC.extra.viewVoltage();
       default: return viewHome();
     }
   }
+  MC.ui = { $app: $app, header: header, esc: esc, fold: fold, meterWidget: meterWidget, compById: compById, store: store };
   window.addEventListener('hashchange', route);
   route();
 
