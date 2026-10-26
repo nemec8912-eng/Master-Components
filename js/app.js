@@ -68,7 +68,7 @@
       '<div id="results"></div>' +
       '<h2 class="sect">Тренажёры</h2>' +
       '<div class="tiles">' +
-        tile('#/quiz', '🎯', 'Найди неисправность') + tile('#/nodes', '🧩', 'Схемы узлов') +
+        tile('#/quiz', '🎯', 'Экзамен: найди неисправность') + tile('#/nodes', '🧩', 'Схемы узлов') +
       '</div>' +
       '<h2 class="sect">Справочники и калькуляторы</h2>' +
       '<div class="tiles t3">' +
@@ -79,7 +79,9 @@
       '<h2 class="sect">Категории</h2><div class="cats">';
     MC.categories.forEach(function (c) {
       var n = MC.components.filter(function (x) { return x.cat === c.id; }).length;
-      html += '<a class="cat" href="#/cat/' + c.id + '"><span class="cat-ic">' + c.icon + '</span><span class="cat-tx"><b>' + esc(c.name) + '</b><small>' + esc(c.desc) + '</small></span><span class="cnt">' + n + '</span></a>';
+      var items = MC.components.filter(function (x) { return x.cat === c.id; });
+      html += '<details class="catd"><summary class="cat"><span class="cat-ic">' + c.icon + '</span><span class="cat-tx"><b>' + esc(c.name) + '</b><small>' + esc(c.desc) + '</small></span><span class="cnt">' + n + '</span></summary>' +
+        '<div class="catgrid">' + items.map(function (x) { return '<a class="cg" href="#/c/' + x.id + '"><span class="cg-sym">' + MC.symbol(x.sym) + '</span><b>' + esc(x.name) + '</b></a>'; }).join('') + '</div></details>';
     });
     html += '</div><p class="foot">Значения в тренажёре — типичные для указанного примера. На реальной плате параллельные цепи могут менять показания: при сомнении выпаяйте компонент.</p></main>';
     $app.innerHTML = html;
@@ -281,7 +283,7 @@
           '<div class="modes top">' + modeBtns + '</div>' +
           '<div class="scr">' +
             '<div class="lcd-r1"><span class="lcd-mode">' + (MC.modes[st.mode].lcd || MC.modes[st.mode].name) + ' <small>' + MC.modes[st.mode].title + '</small></span>' + beep + (st.board ? '<span class="pcb">НА ПЛАТЕ</span>' : '') + glow + '</div>' +
-            readout(m) + probes +
+            readout(m) + (opts.quiz ? '' : '<div class="anim-host"></div>') + probes +
             lookView(comp, st, opts.quiz) +
           '</div>' +
         '</div>' +
@@ -290,9 +292,10 @@
         '<details class="fold probes"' + (pinsOpen ? ' open' : '') + '><summary>🔢 Выбрать выводы кнопками</summary><div class="fold-b">' +
           '<div class="probe-lbl"><span class="dot red"></span>Красный щуп (+)</div><div class="pins">' + pinsRow('red') + '</div>' +
           '<div class="probe-lbl"><span class="dot black"></span>Чёрный щуп (COM)</div><div class="pins">' + pinsRow('black') + '</div>' +
-        '</div></details>';
+        '</div></details>';      var ah = root.querySelector('.anim-host');
+      if (ah && MC.Anim) { if (!anim) anim = new MC.Anim(); anim.mount(ah, comp, st.state); }
     }
-    var nextProbe = 'red', pinsOpen = false, drag = null;
+    var nextProbe = 'red', pinsOpen = false, drag = null, anim = null;
     function svgPt(svg, e) { var p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY; return p.matrixTransform(svg.getScreenCTM().inverse()); }
     root.addEventListener('toggle', function (e) { if (e.target.classList && e.target.classList.contains('probes')) pinsOpen = e.target.open; }, true);
     root.addEventListener('touchstart', function (e) { if (e.target.closest && e.target.closest('[data-drag]')) e.preventDefault(); }, { passive: false });
@@ -324,7 +327,7 @@
       window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
     });
     root.addEventListener('click', function (e) {
-      if (e.target.closest('[data-drag]')) return;
+      if (e.target.closest('[data-drag]') || e.target.closest('.anim-host')) return;
       var pk = e.target.closest('[data-pick]');
       if (pk) {
         var id = pk.getAttribute('data-pick'), other = nextProbe === 'red' ? 'black' : 'red';
@@ -428,48 +431,103 @@
     $t.innerHTML = html;
   }
 
-  // ---------- Тренажёр «Найди неисправность» ----------
-  function viewQuiz(fixedId) {
-    var score = store('score') || { right: 0, total: 0 };
-    var pool = fixedId && compById[fixedId] ? [compById[fixedId]] : MC.components;
-    var c = pool[Math.floor(Math.random() * pool.length)];
-    var s = c.states[Math.floor(Math.random() * c.states.length)];
-    $app.innerHTML = header('Найди неисправность', fixedId ? '#/c/' + fixedId : '#/') + '<main class="wrap">' +
-      '<div class="score">Счёт: <b>' + score.right + '</b> из ' + score.total + (score.total ? ' <button class="link" id="reset">сбросить</button>' : '') + '</div>' +
-      '<div class="card"><div class="lbl">Компонент</div><div class="qhead"><span class="row-sym">' + MC.symbol(c.sym) + '</span><div><b>' + esc(c.name) + '</b><div class="note">Номинал — на экране мультиметра</div></div></div>' +
-      '<p class="muted">Состояние скрыто. Померяйте в разных режимах и на разных выводах, затем выберите диагноз.</p></div>' +
-      '<div id="mw"></div>' +
-      '<div class="card"><div class="lbl">Ваш диагноз</div><div class="answers">' +
-      c.states.map(function (x) { return '<button class="ans" data-st="' + x.id + '">' + esc(x.name) + '</button>'; }).join('') +
+  // ---------- Тренажёр «Найди неисправность» (экзамен) ----------
+  function quizQuestion($host, c, s, ctx) {
+    // ctx: {title, onAnswer(right, c, s), next: fn, nextLabel}
+    $host.innerHTML =
+      '<div class="card qcard"><div class="qhead"><span class="row-sym">' + MC.symbol(c.sym) + '</span><div><div class="qn">' + esc(ctx.title) + '</div><b>' + esc(c.name) + '</b><div class="note">Состояние скрыто. Померяйте и выберите ответ — вариантов: ' + c.states.length + '</div></div></div></div>' +
+      '<div id="qmw"></div>' +
+      '<div class="card"><div class="lbl">Ваш ответ — что с компонентом?</div><div class="answers">' +
+      c.states.map(function (x, i) { return '<button class="ans" data-st="' + x.id + '"><i>' + String.fromCharCode(1040 + i) + '</i>' + esc(x.name) + '</button>'; }).join('') +
       '</div><div id="verdict"></div></div>' +
-      '<details class="card hint"><summary>Подсказка: как проверять</summary><ol class="steps">' + c.howto.map(function (h) { return '<li>' + esc(h) + '</li>'; }).join('') + '</ol></details>' +
-      '</main>';
-    meterWidget(document.getElementById('mw'), c, { state: s, quiz: true });
+      fold('💡 Подсказка: как проверять', stepsList(c), false);
+    meterWidget(document.getElementById('qmw'), c, { state: s, quiz: true });
     var answered = false;
-    var r = document.getElementById('reset');
-    if (r) r.onclick = function () { store('score', { right: 0, total: 0 }); viewQuiz(fixedId); };
-    document.querySelector('.answers').addEventListener('click', function (e) {
+    $host.querySelector('.answers').addEventListener('click', function (e) {
       var b = e.target.closest('button'); if (!b || answered) return;
       answered = true;
       var right = b.dataset.st === s.id;
-      score.total++; if (right) score.right++; store('score', score);
-      document.querySelectorAll('.ans').forEach(function (x) {
-        if (x.dataset.st === s.id) x.classList.add('right');
-        else if (x === b) x.classList.add('wrong');
+      $host.querySelectorAll('.ans').forEach(function (x) {
+        if (x.dataset.st === s.id) x.classList.add('right'); else if (x === b) x.classList.add('wrong');
         x.disabled = true;
       });
       var silent = s.ok ? false : M.measurementList(c).every(function (ms) {
-        var a = M.measure(c, s, ms.mode, ms.a, ms.b, ms.on).raw, o = M.measure(c, M.okState(c), ms.mode, ms.a, ms.b, ms.on).raw;
-        return a === o;
+        return M.measure(c, s, ms.mode, ms.a, ms.b, ms.on).raw === M.measure(c, M.okState(c), ms.mode, ms.a, ms.b, ms.on).raw;
       });
       document.getElementById('verdict').innerHTML =
-        '<div class="status ' + (right ? 'good' : 'bad') + '"><b>' + (right ? '✓ Верно!' : '✗ Не угадали.') + ' Это: ' + esc(s.name) + '</b>' +
+        '<div class="status ' + (right ? 'good' : 'bad') + '"><b>' + (right ? '✓ Верно!' : '✗ Неверно.') + ' Правильный ответ: ' + esc(s.name) + '</b>' +
         (s.why ? '<span class="why">' + esc(s.why) + '</span>' : '') +
-        (silent ? '<span>Эту неисправность мультиметр не показывает — в реальной работе её ищут другими приборами или заменой.</span>' : '') +
-        '</div>' + (s.ok ? '' : '<div class="lbl" style="margin-top:12px">Что показывал прибор</div>' + readingsTable(c, s, false)) +
-        '<div class="row2"><button class="btn" id="next">Следующий →</button><a class="btn ghost" href="#/c/' + c.id + '">Открыть справочник</a></div>';
-      document.getElementById('next').onclick = function () { viewQuiz(fixedId); window.scrollTo(0, 0); };
+        (silent ? '<span>Эту неисправность мультиметр не показывает — её ищут другими приборами или заменой.</span>' : '') + '</div>' +
+        (s.ok ? '' : fold('Что показывал прибор', readingsTable(c, s, false), true)) +
+        '<div class="row2"><button class="btn" id="next">' + esc(ctx.nextLabel) + '</button><a class="btn ghost" href="#/c/' + c.id + '">Справочник</a></div>';
+      document.getElementById('next').onclick = function () { ctx.next(); window.scrollTo(0, 0); };
+      ctx.onAnswer(right, c, s);
     });
+  }
+  function pickState(c) {
+    // 3 из 4 вопросов — с неисправностью
+    var faults = c.states.filter(function (x) { return !x.ok; });
+    if (!faults.length || Math.random() < 0.25) return M.okState(c);
+    return faults[Math.floor(Math.random() * faults.length)];
+  }
+  function viewQuiz(arg) {
+    var score = store('score') || { right: 0, total: 0 };
+    if (arg && compById[arg]) {
+      // Тренировка на одном компоненте — бесконечно
+      var c = compById[arg];
+      $app.innerHTML = header('Тренировка: ' + c.name, '#/c/' + c.id) + '<main class="wrap"><div class="score">Счёт: <b>' + score.right + '</b> из ' + score.total + '</div><div id="q"></div></main>';
+      quizQuestion(document.getElementById('q'), c, pickState(c), {
+        title: 'Тренировка', nextLabel: 'Ещё раз →', next: function () { viewQuiz(arg); },
+        onAnswer: function (r) { score.total++; if (r) score.right++; store('score', score); }
+      });
+      return;
+    }
+    // Экзамен: выбор категории и количества вопросов
+    var cfg = store('examCfg') || { cat: 'all', n: 10 };
+    $app.innerHTML = header('Экзамен: найди неисправность', '#/') + '<main class="wrap">' +
+      '<p class="lead">Вам дают компонент со скрытым состоянием. Меряете мультиметром и выбираете ответ — у каждого компонента столько вариантов, сколько у него бывает состояний.</p>' +
+      '<div class="card"><div class="lbl">Категория</div><div class="chipsel" id="ecat">' +
+      [['all', 'Все компоненты']].concat(MC.categories.map(function (x) { return [x.id, x.icon + ' ' + x.name]; })).map(function (x) { return '<button data-cat="' + x[0] + '" class="' + (cfg.cat === x[0] ? 'on' : '') + '">' + esc(x[1]) + '</button>'; }).join('') +
+      '</div><div class="lbl" style="margin-top:12px">Вопросов</div><div class="seg" id="en">' + [5, 10, 20].map(function (n) { return '<button data-n="' + n + '" class="' + (cfg.n === n ? 'on' : '') + '">' + n + '</button>'; }).join('') + '</div>' +
+      '<button class="btn wide" id="estart" style="margin-top:14px">▶ Начать экзамен</button></div>' +
+      fold('🎯 Тренировка на одном компоненте', '<div class="catgrid">' + MC.components.map(function (x) { return '<a class="cg" href="#/quiz/' + x.id + '"><span class="cg-sym">' + MC.symbol(x.sym) + '</span><b>' + esc(x.name) + '</b><small>' + x.states.length + ' вар.</small></a>'; }).join('') + '</div>', false) +
+      '<div class="score">Общий счёт тренировок: <b>' + score.right + '</b> из ' + score.total + (score.total ? ' <button class="link" id="reset">сбросить</button>' : '') + '</div>' +
+      '</main>';
+    var r = document.getElementById('reset'); if (r) r.onclick = function () { store('score', { right: 0, total: 0 }); viewQuiz(); };
+    document.getElementById('ecat').onclick = function (e) { var b = e.target.closest('button'); if (!b) return; cfg.cat = b.dataset.cat; store('examCfg', cfg); this.querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x === b); }); };
+    document.getElementById('en').onclick = function (e) { var b = e.target.closest('button'); if (!b) return; cfg.n = +b.dataset.n; store('examCfg', cfg); this.querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x === b); }); };
+    document.getElementById('estart').onclick = function () { runExam(cfg); };
+  }
+  function runExam(cfg) {
+    var pool = MC.components.filter(function (x) { return cfg.cat === 'all' || x.cat === cfg.cat; });
+    var qs = [], i;
+    var shuffled = pool.slice().sort(function () { return Math.random() - 0.5; });
+    for (i = 0; i < cfg.n; i++) { var c = shuffled[i % shuffled.length]; qs.push({ c: c, s: pickState(c) }); }
+    var k = 0, right = 0, mistakes = [];
+    var catName = cfg.cat === 'all' ? 'Все компоненты' : catById[cfg.cat].name;
+    function show() {
+      if (k >= qs.length) return finish();
+      $app.innerHTML = header('Экзамен · ' + catName, '#/quiz') + '<main class="wrap">' +
+        '<div class="progress"><div style="width:' + (k / qs.length * 100) + '%"></div></div>' +
+        '<div class="score">Вопрос <b>' + (k + 1) + '</b> из ' + qs.length + ' · верно: <b>' + right + '</b></div><div id="q"></div></main>';
+      quizQuestion(document.getElementById('q'), qs[k].c, qs[k].s, {
+        title: 'Вопрос ' + (k + 1) + ' из ' + qs.length, nextLabel: k + 1 < qs.length ? 'Следующий вопрос →' : 'Результат →',
+        next: function () { k++; show(); },
+        onAnswer: function (ok, c, s) { if (ok) right++; else mistakes.push({ c: c, s: s }); }
+      });
+    }
+    function finish() {
+      var pct = Math.round(right / qs.length * 100);
+      var grade = pct >= 90 ? 'Отлично! 🏆' : pct >= 70 ? 'Хорошо 👍' : pct >= 50 ? 'Удовлетворительно' : 'Нужно потренироваться';
+      $app.innerHTML = header('Результат экзамена', '#/quiz') + '<main class="wrap">' +
+        '<div class="card result"><div class="res-big">' + right + ' / ' + qs.length + '</div><div class="res-pct">' + pct + '% · ' + grade + '</div></div>' +
+        (mistakes.length ? '<div class="card"><div class="lbl">Ошибки — повторите</div><div class="list">' + mistakes.map(function (m) {
+          return '<a class="row" href="#/c/' + m.c.id + '"><span class="row-sym">' + MC.symbol(m.c.sym) + '</span><span class="row-tx"><b>' + esc(m.c.name) + '</b><small>Правильно: ' + esc(m.s.name) + '</small></span><span class="chev">›</span></a>';
+        }).join('') + '</div></div>' : '<p class="lead">Ни одной ошибки!</p>') +
+        '<div class="row2"><button class="btn" id="again">↻ Ещё экзамен</button><a class="btn ghost" href="#/quiz">Настройки</a></div></main>';
+      document.getElementById('again').onclick = function () { runExam(cfg); };
+    }
+    show();
   }
 
   // ---------- Калькулятор резисторов ----------

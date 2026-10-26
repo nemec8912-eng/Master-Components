@@ -1,10 +1,10 @@
 /* Офлайн-кэш Master Components. При обновлении файлов увеличивайте VERSION. */
-var VERSION = 'mc-v6';
+var VERSION = 'mc-v8';
 var FILES = [
   './', 'index.html', 'css/style.css', 'manifest.webmanifest',
   'js/data/00-core.js', 'js/data/10-passive.js', 'js/data/20-semi.js', 'js/data/30-wound.js',
   'js/data/40-appliance.js', 'js/data/50-fridge-micro-switch.js', 'js/data/60-variants.js',
-  'js/symbols.js', 'js/looks.js', 'js/meter.js', 'js/tools.js', 'js/extra.js', 'js/app.js',
+  'js/symbols.js', 'js/looks.js', 'js/anim.js', 'js/meter.js', 'js/tools.js', 'js/extra.js', 'js/app.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'
 ];
 self.addEventListener('install', function (e) {
