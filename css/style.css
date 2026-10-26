@@ -323,3 +323,38 @@ h2.sect { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; col
 .fold.probes { margin-top: 0; }
 .pin b { color: var(--acc); margin-right: 2px; }
 .pin.sel b { color: #fff; }
+/* ---------- v6: большой экран мультиметра ---------- */
+.meter.big { padding: 10px; }
+.scr { background: #0b1110; border: 6px solid #2a2f33; border-radius: 14px; padding: 10px 10px 8px; color: #d8f5c4; box-shadow: inset 0 3px 12px rgba(0, 0, 0, .5); }
+.scr .lcd-r1 { color: #9fd98a; }
+.scr .lcd-mode { font: 800 15px ui-monospace, Menlo, Consolas, monospace; }
+.scr .lcd-mode small { font: 600 11px system-ui, sans-serif; opacity: .7; margin-left: 4px; }
+.scr .beep { opacity: .15; }
+.scr .beep.on, .scr .beep.jit { opacity: 1; }
+.scr .pcb { background: #ffc23a; color: #1b1608; }
+.scr .glow { color: #ff6b5e; }
+.scr-title { margin: 6px 0 8px; padding: 8px 10px; background: rgba(159, 217, 138, .08); border: 1px solid rgba(159, 217, 138, .25); border-radius: 10px; display: flex; flex-direction: column; gap: 2px; }
+.scr-title span { font: 700 10.5px system-ui, sans-serif; letter-spacing: .08em; color: #8fb87f; }
+.scr-title b { font: 800 17px system-ui, sans-serif; color: #fff; line-height: 1.25; }
+.reroll { align-self: flex-start; margin-top: 6px; border: 1px solid rgba(255, 194, 58, .5); background: rgba(255, 194, 58, .12); color: #ffc23a; border-radius: 8px; padding: 5px 10px; font-size: 13px; font-weight: 700; }
+.scr-vals { display: grid; grid-template-columns: 1.35fr 1fr; gap: 8px; }
+.sv { border-radius: 10px; padding: 6px 10px 8px; background: #121a18; border: 2px solid #26332f; min-width: 0; }
+.sv > span { font: 800 11px system-ui, sans-serif; letter-spacing: .08em; color: #8fb87f; }
+.svv { display: flex; align-items: baseline; justify-content: flex-end; gap: 4px; min-height: 44px; flex-wrap: wrap; }
+.sv .lcd-val { font: 800 38px/1.05 ui-monospace, Menlo, Consolas, monospace; color: #d8f5c4; }
+.sv .lcd-val.txt { font-size: 18px; line-height: 1.2; text-align: right; }
+.sv .lcd-unit { font: 800 16px ui-monospace, Menlo, Consolas, monospace; color: #d8f5c4; }
+.sv.norm b { font: 800 22px/1.1 ui-monospace, Menlo, Consolas, monospace; color: #4fd27a; text-align: right; }
+.sv.now.good { border-color: #2f9e57; }
+.sv.now.good .lcd-val, .sv.now.good .lcd-unit { color: #6ff09a; }
+.sv.now.bad { border-color: #e0392d; background: rgba(224, 57, 45, .1); }
+.sv.now.bad .lcd-val, .sv.now.bad .lcd-unit, .sv.now.bad > span { color: #ff7a70; }
+.sv.now.warn { border-color: #c88a1a; }
+.scr .lcd-info { border-top: 1px dashed rgba(159, 217, 138, .3); margin-top: 8px; color: #d8f5c4; }
+.scr .li.hint, .scr .li.why { color: #b9d6ad; opacity: 1; }
+.scr .lcd-pr { color: #b9d6ad; opacity: 1; margin-top: 6px; text-align: left; }
+.scr .look { background: transparent; border: 0; border-top: 1px dashed rgba(159, 217, 138, .3); border-radius: 0; margin: 8px -4px 0; padding: 6px 0 0; }
+.scr .look-hint { color: #8fb87f; }
+.scr .faultlist { margin: 6px 0 2px; }
+.scr .legend, .scr .glegend { color: #b9d6ad; }
+.modes.top { margin: 0 0 10px; }
