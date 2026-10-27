@@ -241,7 +241,7 @@
   MC.look = function (comp) {
     var fn = LOOKS[comp.id];
     if (!fn) return null;
-    CUR = comp.marking || null;
+    CUR = Array.isArray(comp.marking) ? comp.marking : null;
     var L = fn();
     CUR = null;
     var order = ORDER[comp.id] || comp.pins.map(function (p) { return p.id; });
