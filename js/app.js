@@ -387,7 +387,7 @@
             '<div class="li why">' + (st.board ? 'На плате параллельная цепь маскирует неисправность — выпаяйте один вывод и перемерьте. ' : 'Переставьте щупы, смените режим' + (comp.toggle ? ' или нажмите «' + esc(comp.toggle.label) + '»' : '') + '. ') + esc(st.state.why || '') + '</div>';
         } else {
           nowCls += ' bad';
-          vd = '<div class="li vd bad">✗ НЕИСПРАВЕН: ' + esc(st.state.name.toUpperCase()) + '</div>' + (st.state.why ? '<div class="li why">' + esc(st.state.why) + '</div>' : '');
+          vd = '<div class="li vd bad">✗ НЕИСПРАВЕН: ' + esc(st.state.name.toUpperCase()) + '</div>' + (st.state.why ? '<div class="li why">' + esc(st.state.why) + '</div>' : '') + '<div class="li ex">Показание неисправной детали — пример замера.</div>';
         }
       }
       var nowVal = '<span class="lcd-val' + (m.text ? ' txt' : '') + '">' + esc(m.val) + '</span><span class="lcd-unit">' + esc(m.unit || '') + '</span>';
@@ -523,6 +523,17 @@
 
   function stepsList(c) { return '<ol class="steps">' + c.howto.map(function (h) { return '<li>' + esc(h) + '</li>'; }).join('') + '</ol>'; }
 
+  // Источники значений и пометка о точности
+  function srcBlock(c) {
+    var list = (MC.sources && MC.sources[c.id]) || [];
+    var acc = (MC.accuracy && MC.accuracy[c.id]) || '';
+    var body = (list.length ? '<ul class="srcs">' + list.map(function (x) { return '<li><a href="' + esc(x[1]) + '" target="_blank" rel="noopener">' + esc(x[0]) + '</a></li>'; }).join('') + '</ul>' :
+      '<p class="muted">Для этого компонента нет одного даташита: значения типовые.</p>') +
+      (acc ? '<p class="acc-note">' + esc(acc) + '</p>' : '') +
+      '<p class="acc-note">' + esc(MC.accuracyCommon || '') + '</p>';
+    return fold('📚 Источники значений', body, false);
+  }
+
   function renderTest($t, c) {
     var ok = M.okState(c);
     $t.innerHTML =
@@ -530,6 +541,7 @@
       '<div id="mw"></div>' +
       fold('📋 Как проверять', stepsList(c), false) +
       fold('✓ Нормальные показания', readingsTable(c, ok, true), false) +
+      srcBlock(c) +
       '<a class="btn wide" href="#/quiz/' + c.id + '">🎯 Тренировка: скрытая неисправность</a>';
     meterWidget(document.getElementById('mw'), c, { states: true });
   }
@@ -540,7 +552,8 @@
       fold('🧩 Какие бывают', '<dl class="types">' + c.types.map(function (t) { return '<dt>' + esc(t[0]) + '</dt><dd>' + esc(t[1]) + '</dd>'; }).join('') + '</dl>', true) +
       fold('🏷 Маркировка и выводы', '<p>' + esc(c.marking) + '</p>', false) +
       fold('✓ Нормальные показания', readingsTable(c, M.okState(c), true), false) +
-      fold('📋 Как проверять', stepsList(c), false);
+      fold('📋 Как проверять', stepsList(c), false) +
+      srcBlock(c);
   }
 
   function measLabel(c, ms) {

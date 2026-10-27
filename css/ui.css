@@ -319,3 +319,8 @@ html { overflow-x: clip; }
   .scr-vals { grid-template-columns: 1fr 1fr; }
   .sv .lcd-val { font-size: 30px; }
 }
+.srcs { margin: 0; padding-left: 18px; }
+.srcs li { margin: 6px 0; font-size: 14px; line-height: 1.35; }
+.srcs a { color: var(--blue); text-decoration: underline; text-decoration-color: rgba(62, 166, 255, .4); overflow-wrap: anywhere; }
+.acc-note { font-size: 12.5px; color: var(--mut); margin: 8px 0 0; line-height: 1.4; }
+.scr .li.ex { font-size: 11.5px; color: var(--mut2); }
