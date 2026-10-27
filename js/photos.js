@@ -259,6 +259,39 @@
     }
   };
 
+
+  // Корпус DIP (вид сверху под углом)
+  function dipPhoto(n, label) {
+    var half = n / 2, x0 = half === 4 ? 58 : 68, step = half === 4 ? 28 : 32, legs = '';
+    for (var i = 0; i < half; i++) {
+      var x = x0 + i * step;
+      legs += R(x - 4, 100, 8, 10, 'url(#phLegV)', 1) + R(x - 2.5, 108, 5, 24, 'url(#phLegV)', 1.5) + R(x - 4, 36, 8, 8, 'url(#phLegV)', 1);
+    }
+    return sh(100, 134, 66, 8) + legs + P('M44 42 L156 42 L164 50 L164 102 L36 102 L36 50 Z', '#1b1c1f') + P('M36 50 L44 42 L156 42 L164 50 Z', '#2c2e33') +
+      R(36, 50, 128, 52, 'url(#phGlossX)', 3) + C(50, 90, 4, '#2f3135') + P('M36 68 A9 9 0 0 1 36 86 Z', '#0f1012') +
+      T(100, 80, label, label.length > 8 ? 11 : 13, '#cfd3d8');
+  }
+  PH.pwm_uc = function () { return dipPhoto(8, M(0, 'UC3842')); };
+  PH.pwm_sw = function () { return dipPhoto(8, M(0, 'VIPer22A')); };
+  PH.pwm_ncp = function () { return dipPhoto(8, M(0, 'NCP1203')); };
+  PH.opto_triac = function () { return dipPhoto(6, M(0, 'MOC3021')); };
+  PH.opto_fast = function () { return dipPhoto(8, M(0, '6N137')); };
+  PH.opto_drv = function () { return dipPhoto(8, M(0, 'TLP250')); };
+  PH.zener_smd = function () {
+    var shape = M(0, 'SOD123');
+    if (shape === 'MELF') {
+      return sh(100, 112, 64, 8) + g('rotate(-12 100 75)', R(40, 58, 26, 34, 'url(#phSteel)', 5) + R(134, 58, 26, 34, 'url(#phSteel)', 5) +
+        R(62, 56, 76, 38, 'rgba(255,130,70,.7)', 16) + R(118, 56, 12, 38, '#1a1a1a') + R(70, 68, 40, 8, '#6a2a12', 3) + R(62, 56, 76, 38, 'url(#phGloss)', 16));
+    }
+    if (shape === 'SOT23') {
+      return sh(100, 120, 56, 8) + R(66, 92, 14, 26, 'url(#phLegV)', 2) + R(120, 92, 14, 26, 'url(#phLegV)', 2) + R(93, 30, 14, 22, 'url(#phLegV)', 2) +
+        P('M56 50 L144 50 L150 56 L150 98 L50 98 L50 56 Z', '#1b1c1f') + R(50, 56, 100, 42, 'url(#phGlossX)', 3) + P('M50 56 L56 50 L144 50 L150 56 Z', '#2c2e33');
+    }
+    return sh(100, 116, 70, 8) + g('translate(100 79) scale(1.22) translate(-100 -79)', R(34, 80, 30, 12, 'url(#phLegH)', 2) + R(136, 80, 30, 12, 'url(#phLegH)', 2) +
+      P('M52 58 L148 58 L156 66 L156 100 L44 100 L44 66 Z', '#1b1c1f') + P('M44 66 L52 58 L148 58 L156 66 Z', '#2c2e33') +
+      R(126, 62, 14, 38, '#d8dde2') + R(44, 66, 112, 34, 'url(#phGlossX)', 3));
+  };
+
   MC.photo = function (comp) {
     ensureDefs();
     var fn = PH[comp.id];

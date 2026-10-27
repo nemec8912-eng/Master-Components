@@ -17,13 +17,16 @@
     relay: 'switch', button: 'switch', ubl: 'switch', pressostat: 'switch', hall: 'switch', thermostat: 'thermosw',
     tpi: 'xfmr', mains: 'xfmr', mot: 'xfmr',
     varistor: 'varistor', reg78: 'reg', tl431: 'reg',
-    quartz: 'osc', magnetron: 'magnetron', wires: 'wires'
+    quartz: 'osc', magnetron: 'magnetron', wires: 'wires',
+    zener_smd: 'diode', pwm_uc: 'pwm', pwm_sw: 'pwm', pwm_ncp: 'pwm',
+    opto_triac: 'switch', opto_fast: 'switch', opto_drv: 'switch'
   };
   // Подпись управляющего воздействия для ключей
   var CTRL = {
     npn: 'Подать ток на базу', pnp: 'Подать ток на базу', mosfet: 'Напряжение на затвор', igbt: 'Напряжение на затвор',
     triac: 'Импульс на управляющий', scr: 'Импульс на управляющий', opto: 'Включить светодиод оптопары',
-    relay: 'Подать 12 В на катушку', button: 'Нажать кнопку', ubl: 'Подать 220 В на УБЛ', pressostat: 'Подуть (давление воды)', hall: 'Поднести магнит'
+    relay: 'Подать 12 В на катушку', button: 'Нажать кнопку', ubl: 'Подать 220 В на УБЛ', pressostat: 'Подуть (давление воды)', hall: 'Поднести магнит',
+    opto_triac: 'Включить светодиод оптопары', opto_fast: 'Подать сигнал на светодиод', opto_drv: 'Подать сигнал на светодиод'
   };
 
   // ---------- Поведение по состоянию ----------
@@ -34,6 +37,12 @@
     button: { stuck: 'always', oxid: 'jitter', broken: 'never' },
     ubl: { heater: 'never', contact: 'never' },
     opto: { ledopen: 'never', trshort: 'always', weak: 'weak' },
+    opto_triac: { ledopen: 'never', triacshort: 'always', weak: 'weak' },
+    opto_fast: { ledopen: 'never', outshort: 'never', vccshort: 'never', weak: 'weak' },
+    opto_drv: { ledopen: 'never', outshort: 'never', vccshort: 'never', weak: 'weak' },
+    pwm_uc: { dead: 'nogo', vccshort: 'vccshort', outshort: 'outshort', csopen: 'hiccup' },
+    pwm_sw: { dead: 'nogo', dsshort: 'dsshort', vddshort: 'vccshort', fbopen: 'hiccup' },
+    pwm_ncp: { dead: 'nogo', hvshort: 'hvshort', vccshort: 'vccshort', drvshort: 'outshort' },
     npn: { shortce: 'always', shortbe: 'gateshort', openbe: 'never' },
     pnp: { shortce: 'always', opencb: 'never' },
     mosfet: { short: 'always', gate: 'gateshort', noopen: 'never' },
@@ -78,6 +87,7 @@
       xfmr: { ok: 'Переменный ток в первичной обмотке наводит ток во вторичной — лампа горит.', open: 'Обрыв: в первичной тока нет — на выходе ничего.', hot: 'Межвитковое: в первичной ток большой, сердечник греется, на выходе мало.', insul: 'Пробой изоляции: ток из сети попадает прямо на выход — ОПАСНО!', leak: 'Пробой на корпус: ток уходит на корпус — выбивает защиту.' },
       varistor: { ok: 'При нормальном напряжении варистор не проводит. Нажмите «Скачок» — он открывается и забирает импульс на себя.', short: 'Пробой: варистор проводит всегда — КЗ сети, предохранитель сгорел.' },
       reg: { ok: 'Вход 12 В — на выходе стабильные 5 В.', inshort: 'Пробой вход–общий: КЗ по входу, на выходе 0.', passthru: 'Пробой вход–выход: на выход проходит всё входное напряжение — сгорит логика!', open: 'Обрыв: на выходе ничего.', never: 'Нет выходного сигнала.' },
+      pwm: { ok: 'ШИМ работает: на затвор ключа идут прямоугольные импульсы, блок питания выдаёт напряжение.', nogo: 'Импульсов нет: генератор внутри микросхемы не работает, БП мёртвый при наличии питания.', vccshort: 'Пробой по питанию: напряжение на VCC не поднимается, микросхема не стартует.', outshort: 'Выход замкнут: импульсы на затвор ключа не проходят.', dsshort: 'Встроенный ключ пробит: КЗ, горит предохранитель или входной резистор.', hvshort: 'Пробит вход пуска HV: микросхема не стартует от сети.', hiccup: 'Нет управления: ШИМ запускается и сразу уходит в защиту — «цыкает» пачками импульсов.' },
       osc: { ok: 'Кварц генерирует стабильную частоту — микроконтроллер тактируется.', short: 'Пробой: генерации нет — микроконтроллер стоит.', nogo: 'Не генерирует: колебаний нет, плата «мёртвая» при наличии питания.' },
       magnetron: { ok: 'Накал горит, магнетрон излучает СВЧ — еда греется.', open: 'Обрыв накала: катод холодный, излучения нет — не греет.', leak: 'Пробой на корпус: ток уходит на корпус, искрит — не греет.', weak: 'Потеря эмиссии: излучение слабое — греет плохо.' },
       wires: { ok: 'Ток идёт по жиле 1 к нагрузке и возвращается по жиле 2.', open: 'Обрыв жилы: цепь разорвана, нагрузка не работает.', short: 'Замыкание жил: ток идёт напрямую между жилами мимо нагрузки — КЗ!', jitter: 'Плохой контакт: ток прерывается — нагрузка мигает.' }
@@ -116,8 +126,8 @@
         '<path d="M150 38 q-10 7 0 14 q-10 7 0 14 q-10 7 0 14 q-10 7 0 14 q-10 7 0 14" class="an-coil"/><path d="M180 38 q10 7 0 14 q10 7 0 14 q10 7 0 14 q10 7 0 14 q10 7 0 14" class="an-coil"/>' +
         '<line x1="162" y1="34" x2="162" y2="116" class="an-core"/><line x1="168" y1="34" x2="168" y2="116" class="an-core"/></g>' +
         '<text x="80" y="145" class="an-cap">первичная (сеть)</text><text x="250" y="145" class="an-cap">вторичная (выход)</text>';
-    } else if (kind === 'osc') {
-      g += '<rect x="20" y="20" width="290" height="110" rx="8" class="an-cbg"/><path d="" class="an-sine" data-sine/><text x="165" y="145" class="an-cap">сигнал на выводах кварца</text>';
+    } else if (kind === 'osc' || kind === 'pwm') {
+      g += '<rect x="20" y="20" width="290" height="110" rx="8" class="an-cbg"/><path d="" class="an-sine" data-sine/><text x="165" y="145" class="an-cap">' + (kind === 'pwm' ? 'импульсы на затвор ключа (выход ШИМ)' : 'сигнал на выводах кварца') + '</text>';
     } else {
       paths.main = LOOP;
       g += '<path d="' + LOOP + '" class="an-wire"/>' + battery(30, 75, ac) + lamp(300, 75);
@@ -315,6 +325,15 @@
       var amp = b === 'ok' ? 40 : 0, d = 'M25 75';
       for (var x = 0; x <= 280; x += 4) d += ' L' + (25 + x) + ' ' + (75 + amp * Math.sin((x / 18) + t * 12)).toFixed(1);
       var sn = this.svg.querySelector('[data-sine]'); if (sn) sn.setAttribute('d', d);
+      heat = -1;
+    } else if (k === 'pwm') {
+      var on = b === 'ok' || (b === 'hiccup' && (t % 1.6) < 0.45);
+      var dp = 'M25 110', period = 28, duty = 0.38, ph = (t * 60) % period;
+      for (var px = 0; px <= 280; px += 2) {
+        var hi = on && ((px + ph) % period) < period * duty;
+        dp += ' L' + (25 + px) + ' ' + (hi ? 40 : 110);
+      }
+      var sp = this.svg.querySelector('[data-sine]'); if (sp) sp.setAttribute('d', dp);
       heat = -1;
     } else if (k === 'magnetron') {
       var lvm = { ok: 1, open: 0, leak: 0.8, weak: 1 }[b]; if (lvm === undefined) lvm = 1;

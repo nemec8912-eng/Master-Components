@@ -211,6 +211,66 @@
   LOOKS.reg78 = function () { return to220(M(0, 'L7805')); };
   LOOKS.mains = LOOKS.mains;
 
+  // ---------- Микросхемы в корпусе DIP: выводы 1..n/2 снизу слева направо, далее сверху справа налево ----------
+  function dipPos(n) {
+    var half = n / 2, x0 = half === 4 ? 98 : 112, step = half === 4 ? 41 : 48, out = [];
+    for (var i = 0; i < half; i++) out.push([x0 + i * step, 178, 'b']);
+    for (var j = 0; j < half; j++) out.push([x0 + (half - 1 - j) * step, 22, 't']);
+    return out;
+  }
+  function dip(n, label, sub, names) {
+    var p = dipPos(n), g = '';
+    p.forEach(function (q, i) {
+      g += Ln(q[0], q[2] === 'b' ? 136 : 64, q[0], q[1], LEG, 6);
+    });
+    g += R(66, 62, 188, 76, '#1d1e21', 6) + Ci(84, 122, 5, '#3a3c40') + P('M66 88 A12 12 0 0 1 66 112 Z', '#11151a') +
+      Tx(160, 100, label, 15, '#d5d9de') + (sub ? Tx(160, 116, sub, 9, '#7f868e') : '');
+    // повторно подписи поверх корпуса
+    p.forEach(function (q, i) { if (names && names[i]) g += Tx(q[0], q[2] === 'b' ? 132 : 76, names[i], 9, '#9aa1a8'); });
+    return { g: g, p: p };
+  }
+  function pick(D, phys) { return phys.map(function (k) { return D.p[k - 1]; }); }
+
+  LOOKS.pwm_uc = function () {
+    var D = dip(8, M(0, 'UC3842'), '', ['COMP', 'FB', 'CS', 'RT', 'GND', 'OUT', 'VCC', 'VREF']);
+    return { g: D.g, pins: pick(D, [1, 2, 3, 4, 5, 6, 7, 8]), nums: [1, 2, 3, 4, 5, 6, 7, 8] };
+  };
+  LOOKS.pwm_sw = function () {
+    var D = dip(8, M(0, 'VIPer22A'), '', ['S', 'S', 'FB', 'VDD', 'D', 'D', 'D', 'D']);
+    return { g: D.g, pins: pick(D, [6, 1, 4, 3]), nums: [6, 1, 4, 3] };
+  };
+  LOOKS.pwm_ncp = function () {
+    var D = dip(8, M(0, 'NCP1203'), '', ['Adj', 'FB', 'CS', 'GND', 'DRV', 'VCC', 'NC', 'HV']);
+    return { g: D.g, pins: pick(D, [8, 6, 5, 4, 3, 2]), nums: [8, 6, 5, 4, 3, 2] };
+  };
+  LOOKS.opto_triac = function () {
+    var D = dip(6, M(0, 'MOC3021'), '', ['A', 'K', 'NC', 'MT', 'NC', 'MT']);
+    return { g: D.g, pins: pick(D, [1, 2, 4, 6]), nums: [1, 2, 4, 6] };
+  };
+  LOOKS.opto_fast = function () {
+    var D = dip(8, M(0, '6N137'), '', ['NC', 'A', 'K', 'NC', 'GND', 'Vo', 'VE', 'VCC']);
+    return { g: D.g, pins: pick(D, [2, 3, 5, 6, 8]), nums: [2, 3, 5, 6, 8] };
+  };
+  LOOKS.opto_drv = function () {
+    var D = dip(8, M(0, 'TLP250'), '', ['NC', 'A', 'K', 'NC', 'GND', 'Vo', 'Vo', 'VCC']);
+    return { g: D.g, pins: pick(D, [2, 3, 5, 6, 8]), nums: [2, 3, 5, 6, 8] };
+  };
+  LOOKS.zener_smd = function () {
+    var shape = M(0, 'SOD123');
+    if (shape === 'MELF') {
+      var g = R(60, 84, 30, 32, '#c9ced4', 6) + R(230, 84, 30, 32, '#c9ced4', 6) + R(88, 80, 144, 40, 'rgba(255,130,80,.55)', 18, ' stroke="#e6a07a" stroke-width="2"') +
+        R(200, 80, 14, 40, '#2a2a2a') + R(110, 92, 70, 8, '#6a2a12') + Ln(60, 100, 30, 100, LEG, 5) + Ln(260, 100, 290, 100, LEG, 5);
+      return { g: g, pins: [[30, 100, 'l'], [290, 100, 'r']] };
+    }
+    if (shape === 'SOT23') {
+      var g2 = R(100, 70, 120, 60, '#1d1e21', 6) + Tx(160, 106, 'SOT-23', 12, '#8f969e') +
+        R(118, 130, 16, 30, LEG, 2) + R(186, 130, 16, 30, LEG, 2) + R(152, 40, 16, 30, LEG, 2) + Tx(194, 176, 'NC', 9, '#7f868e');
+      return { g: g2, pins: [[126, 160, 'b'], [160, 40, 't']] };
+    }
+    var g3 = R(40, 92, 60, 16, LEG, 3) + R(220, 92, 60, 16, LEG, 3) + R(80, 70, 160, 60, '#1d1e21', 8) + R(196, 70, 16, 60, '#d8dde2') + Tx(140, 106, 'SOD-123', 12, '#8f969e');
+    return { g: g3, pins: [[40, 100, 'l'], [280, 100, 'r']] };
+  };
+
   // Порядок выводов рисунка → id выводов компонента (если отличается от порядка comp.pins)
   var ORDER = {
     npn: ['C', 'B', 'E'], pnp: ['C', 'B', 'E'],      // BC547/557: К–Б–Э
@@ -233,6 +293,9 @@
     relay: [['K1', 'K2', 'Катушка'], ['COM', 'NC', 'NO', 'Контакты']],
     wmotor: [['T1', 'T2', 'Тахо'], ['B1', 'B2', 'Щётки'], ['S1', 'S2', 'S3', 'Статор']],
     opto: [['A', 'K', 'Светодиод'], ['E', 'C', 'Транзистор']],
+    opto_triac: [['A', 'K', 'Светодиод'], ['T1', 'T2', 'Выходной симистор']],
+    opto_fast: [['A', 'K', 'Светодиод'], ['GND', 'VO', 'VCC', 'Выход']],
+    opto_drv: [['A', 'K', 'Светодиод'], ['GND', 'VO', 'VCC', 'Выход драйвера']],
     magnetron: [['F1', 'F2', 'Накал']],
     heater: [['L1', 'L2', 'Спираль']],
     wires: [['A1', 'A2', 'Жила 1 (начало–конец)'], ['B1', 'B2', 'Жила 2 (начало–конец)']]
@@ -247,7 +310,7 @@
     var order = ORDER[comp.id] || comp.pins.map(function (p) { return p.id; });
     var pos = {};
     var num = {};
-    order.forEach(function (id, i) { if (L.pins[i]) { pos[id] = L.pins[i]; num[id] = i + 1; } });
+    order.forEach(function (id, i) { if (L.pins[i]) { pos[id] = L.pins[i]; num[id] = L.nums ? L.nums[i] : i + 1; } });
     return { g: L.g, pos: pos, num: num, groups: GROUPS[comp.id] || [] };
   };
 })();
