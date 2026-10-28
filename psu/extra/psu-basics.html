@@ -1,0 +1,1193 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Как работает блок питания</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Onest:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: animated schematic board → fault simulator with multimeter → component detail with oscilloscope */
+:root{
+  --bg:#edf0f3; --panel:#ffffff; --ink:#17212c; --muted:#5a6775; --line:#c5ced8; --grid:#e2e7ec;
+  --ac:#cf7f12; --hv:#c8452f; --pulse:#7448c9; --lv:#1d8656; --fb:#2766d1; --bad:#d4145a;
+  --probe-r:#d42a1e; --probe-b:#1b1f24;
+  --dmm:#2a2e33; --dmm-edge:#e2b62d; --lcd:#c7d4b4; --lcd-ink:#1d2416;
+  --f-display:"Unbounded","Onest",system-ui,sans-serif;
+  --f-body:"Onest",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0e1319; --panel:#151c24; --ink:#e4eaf0; --muted:#90a0b0; --line:#2d3946; --grid:#1f2933;
+  --ac:#f2a43a; --hv:#ff7a5c; --pulse:#a985ff; --lv:#3ccf8e; --fb:#5c9bff; --bad:#ff4f8b;
+  --probe-r:#ff4a3d; --probe-b:#c9d3dc; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e1319; --panel:#151c24; --ink:#e4eaf0; --muted:#90a0b0; --line:#2d3946; --grid:#1f2933;
+  --ac:#f2a43a; --hv:#ff7a5c; --pulse:#a985ff; --lv:#3ccf8e; --fb:#5c9bff; --bad:#ff4f8b;
+  --probe-r:#ff4a3d; --probe-b:#c9d3dc; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55}
+.wrap{max-width:1100px;margin:0 auto;padding-inline:16px;padding-block:24px 48px;display:grid;gap:18px}
+header{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:end;justify-content:space-between}
+h1{font-family:var(--f-display);font-weight:700;font-size:clamp(22px,4vw,32px);line-height:1.15;margin:0;text-wrap:balance}
+.lead{margin:6px 0 0;color:var(--muted);max-width:62ch}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+button{font:inherit;font-weight:600;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:8px 14px;cursor:pointer}
+button:hover{border-color:var(--muted)}
+button:focus-visible,input:focus-visible,.blk:focus-visible{outline:2px solid var(--fb);outline-offset:2px}
+.rng{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 12px}
+.rng label{font-size:13px;color:var(--muted)}
+.rng output{font-family:var(--f-mono);font-size:13px;min-width:4.5ch;font-variant-numeric:tabular-nums}
+input[type=range]{accent-color:var(--lv);width:110px}
+
+.board{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow-x:auto}
+.board svg{display:block;min-width:760px;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;padding:10px 16px;border-top:1px solid var(--line);font-size:13px;color:var(--muted);min-width:760px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:10px;height:10px;border-radius:50%;display:inline-block}
+
+/* svg */
+.base{fill:none;stroke:var(--line);stroke-width:5;stroke-linecap:round}
+.wire.hot .base{stroke:var(--muted)}
+.blk{cursor:pointer}
+.blk rect.box{fill:var(--panel);stroke:var(--line);stroke-width:1.5}
+.blk:hover rect.box{stroke:var(--muted)}
+.blk.on rect.box{stroke:var(--ink);stroke-width:2.5}
+.blk.culprit rect.box{stroke:var(--bad);stroke-width:2.5}
+.num{font-family:var(--f-mono);font-size:10.5px;fill:var(--muted)}
+.nm{font-family:var(--f-body);font-weight:600;font-size:13px;fill:var(--ink)}
+.sub{font-family:var(--f-mono);font-size:10px;fill:var(--muted)}
+.lb{font-family:var(--f-mono);font-size:10px;fill:var(--muted)}
+.st{font-family:var(--f-mono);font-size:9.5px;font-weight:600}
+.val{font-family:var(--f-mono);font-size:10.5px;fill:var(--ink)}
+.pol{font-family:var(--f-mono);font-size:13px;font-weight:600}
+.wl{fill:none;stroke:var(--line);stroke-width:2;stroke-linecap:round}
+.part{fill:var(--panel);stroke:var(--muted);stroke-width:1.5}
+.core{stroke:var(--muted);stroke-width:2}
+.iso{fill:none;stroke:var(--muted);stroke-width:1;stroke-dasharray:3 4}
+.zone{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.08em;fill:var(--muted)}
+.blink{animation:blk .35s steps(2) infinite}
+@keyframes blk{50%{opacity:.25}}
+.probe-ring{fill:none;stroke-width:2;animation:ring 1.2s ease-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes ring{from{transform:scale(.6);opacity:1}to{transform:scale(2.2);opacity:0}}
+
+/* fault simulator */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px;min-width:0}
+.fbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.fbar .ttl{font-family:var(--f-display);font-weight:500;font-size:16px;margin-right:6px}
+.fbtn[aria-pressed="true"]{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+.fbtn.bad[aria-pressed="true"]{background:var(--bad);border-color:var(--bad);color:#fff}
+.status{margin-left:auto;font-family:var(--f-mono);font-size:12.5px;padding:5px 10px;border-radius:999px;border:1px solid var(--lv);color:var(--lv)}
+.status.alarm{border-color:var(--bad);color:var(--bad)}
+.diag{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:20px;margin-top:18px;padding-top:18px;border-top:1px solid var(--line)}
+@media (max-width:860px){.diag{grid-template-columns:1fr}}
+.diag h3{font-family:var(--f-display);font-weight:500;font-size:19px;margin:0 0 6px;text-wrap:balance}
+.diag p{margin:0 0 10px;max-width:62ch}
+.lbl{font-family:var(--f-mono);font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin:14px 0 6px}
+.sym{margin:0;padding-left:18px}
+.sym li{margin:2px 0}
+.steps{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.steps button{width:100%;text-align:left;display:grid;grid-template-columns:28px 1fr;gap:8px;align-items:start;font-weight:500;padding:9px 12px}
+.steps button b{font-family:var(--f-mono);font-size:12px;color:var(--muted);padding-top:2px}
+.steps button[aria-current="true"]{border-color:var(--ink);box-shadow:inset 3px 0 0 var(--bad)}
+.note{font-size:14px;padding:10px 12px;border-radius:8px;background:var(--bg);margin-top:12px}
+
+.dmm{background:var(--dmm);border:3px solid var(--dmm-edge);border-radius:18px;padding:16px;color:#e9edf1;max-width:360px;width:100%;justify-self:center}
+.lcd{background:var(--lcd);color:var(--lcd-ink);border-radius:8px;padding:10px 14px;display:flex;justify-content:flex-end;align-items:baseline;gap:8px;min-height:74px;box-shadow:inset 0 2px 6px rgba(0,0,0,.35)}
+.lcd span{font-family:var(--f-mono);font-weight:600;font-size:clamp(26px,6vw,38px);font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.lcd small{font-family:var(--f-mono);font-size:16px;font-weight:600}
+.modes{display:flex;flex-wrap:wrap;gap:5px;margin:12px 0}
+.modes span{font-family:var(--f-mono);font-size:12px;padding:3px 7px;border-radius:5px;border:1px solid #4a5058;color:#9aa3ad}
+.modes span.act{background:var(--dmm-edge);border-color:var(--dmm-edge);color:#1d1d1d;font-weight:600}
+.lead-row{display:grid;grid-template-columns:14px 1fr;gap:8px;font-size:13.5px;margin:4px 0;align-items:start}
+.lead-row i{width:12px;height:12px;border-radius:50%;margin-top:4px;border:2px solid #e9edf1}
+.dmm .tog{display:flex;gap:6px;margin-top:12px}
+.dmm .tog button{flex:1;background:transparent;color:#e9edf1;border-color:#4a5058;font-size:13.5px;padding:7px 8px}
+.dmm .tog button[aria-pressed="true"]{background:#e9edf1;color:#1d1d1d}
+.meaning{font-size:13.5px;margin-top:10px;color:#d3d9df;min-height:3em}
+
+/* component detail */
+.detail{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:18px}
+@media (max-width:820px){.detail{grid-template-columns:1fr}}
+.step{font-family:var(--f-mono);font-size:12px;letter-spacing:.06em;color:var(--muted);text-transform:uppercase}
+.card h2{font-family:var(--f-display);font-weight:500;font-size:21px;line-height:1.25;margin:6px 0 4px;text-wrap:balance}
+.role{color:var(--muted);margin:0 0 12px;font-weight:500}
+.card p{margin:0 0 12px;max-width:62ch}
+dl{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;margin:14px 0 0;padding-top:14px;border-top:1px solid var(--line)}
+dt{color:var(--muted);font-size:13.5px}
+dd{margin:0;font-family:var(--f-mono);font-size:13.5px;font-variant-numeric:tabular-nums}
+.warn{margin-top:14px;font-size:13.5px;padding:8px 12px;border-radius:8px;border:1px solid var(--bad);color:var(--bad)}
+.scope-h{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:10px;flex-wrap:wrap}
+.scope-h b{font-weight:600}
+.scope-h span{font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+canvas{display:block;width:100%;height:250px;border-radius:8px;background:var(--bg)}
+.keys{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:8px;font-size:13px;color:var(--muted)}
+.keys span{display:inline-flex;gap:6px;align-items:center}
+.keys i{width:14px;height:3px;border-radius:2px}
+.hint{font-size:13.5px;color:var(--muted);margin:10px 0 0}
+/* detailed block schematic */
+.dhead{display:flex;justify-content:space-between;align-items:end;gap:12px;flex-wrap:wrap}
+.dhead h2{margin-bottom:0}
+.dtip{font-size:13.5px;color:var(--muted)}
+.dwrap{overflow-x:auto;margin-top:14px;border-radius:8px;background:var(--bg)}
+#dsvg{display:block;min-width:620px;width:100%;height:auto}
+.dw{fill:none;stroke:var(--ink);stroke-opacity:.45;stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round}
+.dp{fill:none;stroke:var(--ink);stroke-width:1.7;stroke-linejoin:round;stroke-linecap:round}
+.dbody{fill:var(--panel)}
+.dc{cursor:pointer;outline:none}
+.dc .hit{fill:transparent;stroke:none}
+.dc:hover .hit{fill:var(--grid)}
+.dc.sel .hit{fill:var(--grid);stroke:var(--fb);stroke-width:1.5;stroke-dasharray:3 3}
+.dc:focus-visible .hit{stroke:var(--fb);stroke-width:2}
+.did{font-family:var(--f-mono);font-size:11px;font-weight:600;fill:var(--ink)}
+.dval{font-family:var(--f-mono);font-size:9.5px;fill:var(--muted)}
+.dlab{font-family:var(--f-body);font-size:11px;fill:var(--muted)}
+.dyn{font-family:var(--f-mono);font-size:11px;font-weight:600}
+.jn{fill:var(--ink)}
+.dgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px;margin-top:16px}
+@media (max-width:820px){.dgrid{grid-template-columns:1fr}}
+.xinfo h3{font-family:var(--f-display);font-weight:500;font-size:18px;margin:4px 0 2px}
+.xinfo .xv{font-family:var(--f-mono);font-size:13px;color:var(--muted);margin:0 0 10px}
+.xinfo .lbl{margin-top:12px}
+.xinfo p{margin:0;max-width:62ch}
+.tabwrap{overflow-x:auto}
+.ptab{width:100%;border-collapse:collapse;font-size:13.5px}
+.ptab th{text-align:left;font-weight:500;color:var(--muted);font-size:12px;border-bottom:1px solid var(--line);padding:6px 8px}
+.ptab td{padding:6px 8px;border-bottom:1px solid var(--grid);vertical-align:top}
+.ptab td:first-child{font-family:var(--f-mono);font-weight:600;white-space:nowrap}
+.ptab td:last-child{font-family:var(--f-mono);font-size:12.5px;color:var(--muted)}
+.ptab tr.row{cursor:pointer}
+.ptab tr.row:hover td,.ptab tr.row.sel td{background:var(--bg)}
+.ptab tr.row.sel td:first-child{box-shadow:inset 3px 0 0 var(--fb)}
+@media (prefers-reduced-motion:reduce){.blink,.probe-ring{animation:none}}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Как работает импульсный блок питания</h1>
+      <p class="lead">Точки на проводах показывают ток: куда он течёт и когда. Каждый элемент работает в замедленном виде. Нажмите на блок, чтобы узнать подробности, или смоделируйте поломку ниже.</p>
+    </div>
+    <div class="controls">
+      <button id="play" type="button">▶ Обход по шагам</button>
+      <div class="rng"><label for="spdR">Скорость</label><input id="spdR" type="range" min="10" max="200" value="100"><output id="spdO">1,0×</output></div>
+      <div class="rng"><label for="loadR">Нагрузка</label><input id="loadR" type="range" min="0" max="100" value="40"><output id="loadO">40%</output></div>
+    </div>
+  </header>
+
+  <div class="board">
+    <svg id="svg" viewBox="0 0 942 562" role="img" aria-label="Анимированная схема импульсного блока питания">
+      <text class="zone" x="16" y="26">ПЕРВИЧНАЯ СТОРОНА · ОПАСНОЕ НАПРЯЖЕНИЕ</text>
+      <text class="zone" x="926" y="552" text-anchor="end">ВТОРИЧНАЯ СТОРОНА · БЕЗОПАСНОЕ НАПРЯЖЕНИЕ</text>
+      <g id="wires"></g>
+      <g id="blocks"></g>
+      <g id="probes"></g>
+    </svg>
+    <div class="legend">
+      <span><i style="background:var(--ac)"></i>переменный ток сети</span>
+      <span><i style="background:var(--hv)"></i>постоянный ≈320 В</span>
+      <span><i style="background:var(--pulse)"></i>импульсы 65 кГц</span>
+      <span><i style="background:var(--lv)"></i>выходной ток</span>
+      <span><i style="background:var(--fb)"></i>обратная связь</span>
+      <span><i style="background:var(--bad)"></i>авария</span>
+      <span>Анимация замедлена: в реальности ключи переключаются 65 000 раз в секунду</span>
+    </div>
+  </div>
+
+  <section class="card" aria-labelledby="xName">
+    <div class="dhead">
+      <div><div class="step">Подробная схема блока · все детали</div><h2 id="xName"></h2></div>
+      <span class="dtip">Нажмите на любую деталь на схеме или в таблице</span>
+    </div>
+    <div class="dwrap"><svg id="dsvg" viewBox="0 0 640 262" role="img" aria-label="Подробная принципиальная схема выбранного блока"></svg></div>
+    <div class="dgrid">
+      <div class="xinfo" aria-live="polite">
+        <div class="step" id="xId"></div>
+        <h3 id="xN"></h3>
+        <p class="xv" id="xV"></p>
+        <div class="lbl">Зачем нужен</div><p id="xWhy"></p>
+        <div class="lbl">Как проверить мультиметром</div><p id="xChk"></p>
+        <div class="lbl">Типичная неисправность</div><p id="xFail"></p>
+      </div>
+      <div class="tabwrap">
+        <table class="ptab"><thead><tr><th>Обозн.</th><th>Деталь</th><th>Номинал</th></tr></thead><tbody id="xTab"></tbody></table>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="fttl">
+    <div class="fbar" id="fbar">
+      <span class="ttl" id="fttl">Неисправности</span>
+      <span class="status" id="status">Блок работает нормально</span>
+    </div>
+    <div class="diag" id="diag" hidden>
+      <div>
+        <h3 id="gName"></h3>
+        <p id="gWhy"></p>
+        <div class="lbl">Признаки</div>
+        <ul class="sym" id="gSym"></ul>
+        <div class="lbl">Проверка мультиметром — нажмите на шаг</div>
+        <ol class="steps" id="gSteps"></ol>
+        <div class="note" id="gNote"></div>
+      </div>
+      <div class="dmm" aria-live="polite">
+        <div class="lcd"><span id="mVal">0,00</span><small id="mUnit">В</small></div>
+        <div class="modes" id="mModes"></div>
+        <div class="lead-row"><i style="background:var(--probe-r)"></i><div><b>Красный щуп</b> (V/Ω): <span id="mR"></span></div></div>
+        <div class="lead-row"><i style="background:#111"></i><div><b>Чёрный щуп</b> (COM): <span id="mB"></span></div></div>
+        <div class="tog" id="mTog"></div>
+        <div class="meaning" id="mMean"></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="detail">
+    <div class="card" aria-live="polite">
+      <div class="step" id="dStep"></div>
+      <h2 id="dName"></h2>
+      <p class="role" id="dRole"></p>
+      <div id="dText"></div>
+      <dl id="dFacts"></dl>
+      <div class="warn" id="dWarn" hidden></div>
+    </div>
+    <div class="card">
+      <div class="scope-h"><b id="sTitle">Осциллограмма</b><span id="sWin"></span></div>
+      <canvas id="cv"></canvas>
+      <div class="keys" id="sKeys"></div>
+      <p class="hint" id="sHint"></p>
+    </div>
+  </div>
+</div>
+
+<script>
+const W=150,H=122,X=[16,206,396,586,776],Y=[40,220,400];
+const C={ac:"var(--ac)",hv:"var(--hv)",pu:"var(--pulse)",lv:"var(--lv)",fb:"var(--fb)",ln:"var(--line)",bad:"var(--bad)",ink:"var(--ink)",mu:"var(--muted)"};
+const B={
+ in:{c:0,r:0,n:"Вход сети",s:"230 В ~ 50 Гц"},
+ emi:{c:1,r:0,n:"Сетевой фильтр",s:"EMI · помехи"},
+ br:{c:2,r:0,n:"Диодный мост",s:"~ → пульсирующий"},
+ cap:{c:3,r:0,n:"Конденсатор",s:"400 В · 470 мкФ"},
+ sw:{c:4,r:0,n:"Силовые ключи",s:"MOSFET · полумост"},
+ tr:{c:4,r:1,n:"Трансформатор",s:"феррит · развязка"},
+ d:{c:3,r:1,n:"Диоды Шоттки",s:"выпрямитель"},
+ lc:{c:2,r:1,n:"LC-фильтр",s:"дроссель + C"},
+ out:{c:1,r:1,n:"Выходы",s:"разъём ATX"},
+ fb:{c:1,r:2,n:"Обратная связь",s:"TL431 + оптопара"},
+ pwm:{c:3,r:2,n:"ШИМ-контроллер",s:"TL494 · 65 кГц"}
+};
+const ORDER=["in","emi","br","cap","pwm","sw","tr","d","lc","out","fb"];
+const WIRES=[
+ {f:"in",t:"emi",k:"ac",d:"M166,100 H206"},
+ {f:"emi",t:"br",k:"ac",d:"M356,100 H396"},
+ {f:"br",t:"cap",k:"hv",d:"M546,100 H586"},
+ {f:"cap",t:"sw",k:"hv",d:"M736,100 H776"},
+ {f:"sw",t:"tr",k:"pu",d:"M851,162 V220"},
+ {f:"tr",t:"d",k:"pu",d:"M776,280 H736"},
+ {f:"d",t:"lc",k:"lv",d:"M586,280 H546"},
+ {f:"lc",t:"out",k:"lv",d:"M396,280 H356"},
+ {f:"out",t:"fb",k:"fb",d:"M281,342 V400"},
+ {f:"fb",t:"pwm",k:"fb",d:"M356,460 H586"},
+ {f:"pwm",t:"sw",k:"pu",d:"M736,460 H756 V288 A8,8 0 0 0 756,272 V130 H776"}
+];
+const NS="http://www.w3.org/2000/svg";
+const el=(t,a,p)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);p&&p.appendChild(e);return e};
+const ln=(g,x1,y1,x2,y2,c="wl")=>el("line",{x1,y1,x2,y2,class:c},g);
+const tx=(g,x,y,s,c="lb",a={})=>{const e=el("text",Object.assign({x,y,class:c},a),g);e.textContent=s;return e};
+const paint=(e,c,w)=>{e.style.stroke=c;if(w!=null)e.style.strokeWidth=w};
+const fillc=(e,c)=>{e.style.fill=c};
+const op=(e,v)=>{e.style.opacity=v};
+function coilV(x,y1,n,r,sweep){let d=`M${x},${y1}`;for(let i=0;i<n;i++)d+=` a${r},${r} 0 0 ${sweep} 0,${2*r}`;return d}
+function coilH(x1,y,n,r,sweep){let d=`M${x1},${y}`;for(let i=0;i<n;i++)d+=` a${r},${r} 0 0 ${sweep} ${2*r},0`;return d}
+function diode(g,ax,ay,kx,ky,s=6){
+  const G=el("g",{},g),dx=kx-ax,dy=ky-ay,L=Math.hypot(dx,dy),ux=dx/L,uy=dy/L,nx=-uy,ny=ux,mx=(ax+kx)/2,my=(ay+ky)/2;
+  const w=ln(G,ax,ay,kx,ky);
+  const t=el("path",{d:`M${mx-ux*s+nx*s},${my-uy*s+ny*s} L${mx-ux*s-nx*s},${my-uy*s-ny*s} L${mx+ux*s},${my+uy*s}Z`},G);
+  const b=ln(G,mx+ux*s+nx*s,my+uy*s+ny*s,mx+ux*s-nx*s,my+uy*s-ny*s);
+  return {set(c,bad){const k=bad?C.bad:c;paint(w,k||C.ln,k?2.6:2);paint(b,k||C.mu);fillc(t,k||C.mu);G.classList.toggle("blink",!!bad)}};
+}
+function lever(g,px,py,len){ // switch: pivot at top, contact below
+  const pv=el("circle",{cx:px,cy:py,r:2.5},g),lv=ln(g,px,py,px,py+len),ct=el("circle",{cx:px,cy:py+len,r:2.5},g);
+  return {set(closed,c,bad){const a=closed?0:0.62,k=bad?C.bad:(closed?c:C.mu);
+    lv.setAttribute("x2",px+Math.sin(a)*len);lv.setAttribute("y2",py+Math.cos(a)*len);
+    paint(lv,k,closed?3:2);fillc(pv,k);fillc(ct,closed?k:C.mu);lv.classList.toggle("blink",!!bad)}};
+}
+
+/* ---------- block graphics: each returns update(S) ---------- */
+const BUILD={
+ in(g,x,y){
+  tx(g,x+12,y+48,"L");tx(g,x+12,y+88,"N");
+  const pL=tx(g,x+138,y+40,"+","pol",{"text-anchor":"middle"}),pN=tx(g,x+138,y+80,"−","pol",{"text-anchor":"middle"});
+  const a=ln(g,x+22,y+44,x+50,y+44),b=ln(g,x+86,y+44,x+128,y+44);
+  const fz=el("rect",{x:x+50,y:y+37,width:36,height:14,rx:3,class:"part"},g);
+  const f1=ln(g,x+52,y+44,x+68,y+44),f2=ln(g,x+68,y+44,x+84,y+44);
+  const soot=el("circle",{cx:x+68,cy:y+44,r:5},g);fillc(soot,C.bad);
+  tx(g,x+68,y+64,"FU1 · 5 А","lb",{"text-anchor":"middle"});
+  const n1=ln(g,x+22,y+84,x+58,y+84),n2=ln(g,x+88,y+84,x+128,y+84);
+  el("rect",{x:x+58,y:y+78,width:30,height:12,rx:2,class:"part"},g);tx(g,x+73,y+87.5,"NTC","lb",{"text-anchor":"middle","font-size":"8"});
+  return S=>{
+    const live=Math.abs(S.acV);
+    pL.textContent=S.acV>=0?"+":"−";pN.textContent=S.acV>=0?"−":"+";fillc(pL,C.ac);fillc(pN,C.ac);op(pL,.25+.75*live);op(pN,.25+.75*live);
+    const cIn=S.surge&&S.surgeIn?C.bad:C.ac;
+    [a,n1].forEach(e=>{paint(e,cIn,2.6);op(e,.35+.65*live)});
+    const after=S.fuse?C.ln:cIn;[b,n2].forEach(e=>{paint(e,after,S.fuse?2:2.6);op(e,S.fuse?1:.35+.65*live)});
+    if(S.fuse){f1.setAttribute("x2",x+63);f2.setAttribute("x1",x+74);paint(f1,C.bad);paint(f2,C.bad);paint(fz,C.bad);op(soot,.35)}
+    else{f1.setAttribute("x2",x+68);f2.setAttribute("x1",x+68);const k=S.surge&&S.surgeIn&&S.flash?C.bad:cIn;paint(f1,k,2.6);paint(f2,k,2.6);paint(fz,S.surge&&S.surgeIn?C.bad:C.mu);op(soot,0)}
+  };
+ },
+ emi(g,x,y){
+  const noise=el("polyline",{class:"wl",points:""},g);
+  const c1=el("path",{d:coilH(x+56,y+44,4,5,1),class:"wl"},g),c2=el("path",{d:coilH(x+56,y+84,4,5,0),class:"wl"},g);
+  const o1=ln(g,x+96,y+44,x+138,y+44),i2=ln(g,x+12,y+84,x+56,y+84),o2=ln(g,x+96,y+84,x+138,y+84);
+  ln(g,x+120,y+44,x+120,y+60);ln(g,x+112,y+60,x+128,y+60);ln(g,x+112,y+67,x+128,y+67);ln(g,x+120,y+67,x+120,y+84);
+  tx(g,x+60,y+64,"дроссель");tx(g,x+108,y+100,"CX");
+  const sp=tx(g,x+14,y+30,"помехи","lb");
+  return S=>{
+    const on=S.on,live=Math.abs(S.acV);let pts=[];
+    for(let i=0;i<=14;i++){const xx=x+12+i*3;pts.push(xx+","+(y+44+(on&&i>0&&i<14?(Math.random()-.5)*9:0)))}
+    noise.setAttribute("points",pts.join(" "));paint(noise,on?C.ac:C.ln,on?2:2);op(noise,on?.9:1);op(sp,on?1:.4);
+    const k=S.surge&&S.surgeIn?C.bad:C.ac;
+    [c1,c2,o1,i2,o2].forEach(e=>{paint(e,on?k:C.ln,on?2.6:2);op(e,on?.35+.65*live:1)});
+  };
+ },
+ br(g,x,y){
+  const Lp=[x+41,y+60],T=[x+75,y+31],R=[x+109,y+60],Bt=[x+75,y+89];
+  const inA=ln(g,x+4,y+60,Lp[0],Lp[1]);
+  const DA=diode(g,...Lp,...T),DB=diode(g,...R,...T),DC=diode(g,...Bt,...Lp),DD=diode(g,...Bt,...R);
+  const outp=el("path",{d:`M${T[0]},${T[1]} H${x+132} V${y+60} H${x+146}`,class:"wl"},g);
+  ln(g,Bt[0],Bt[1],Bt[0],y+100);ln(g,Bt[0]-6,y+100,Bt[0]+6,y+100);
+  tx(g,Lp[0]-10,Lp[1]-6,"~","pol");tx(g,R[0]+5,R[1]+4,"~","pol");tx(g,T[0]-16,T[1]+4,"+","pol");tx(g,Bt[0]-16,Bt[1]+2,"−","pol");
+  tx(g,x+53,y+44,"D1","lb",{"font-size":"8"});tx(g,x+91,y+44,"D2","lb",{"font-size":"8"});tx(g,x+45,y+84,"D3","lb",{"font-size":"8"});tx(g,x+97,y+84,"D4","lb",{"font-size":"8"});
+  return S=>{
+    const pos=S.acV>=0,ch=S.charging&&S.on,bad=S.fault==="bridge";
+    if(bad&&S.surge){DA.set(S.flash?C.bad:null,true);DB.set(null);DC.set(!pos?C.bad:null);DD.set(pos?C.hv:null)}
+    else{DA.set(ch&&pos?C.hv:null,bad);DB.set(ch&&!pos?C.hv:null);DC.set(ch&&!pos?C.hv:null);DD.set(ch&&pos?C.hv:null)}
+    paint(inA,S.on?(S.surge&&S.surgeIn?C.bad:C.ac):C.ln,S.on?2.6:2);paint(outp,ch?C.hv:C.ln,ch?2.6:2);
+  };
+ },
+ cap(g,x,y){
+  tx(g,x+58,y+31,"+","pol");
+  const can=el("rect",{x:x+52,y:y+34,width:46,height:60,rx:6,class:"part"},g);
+  const fl=el("rect",{x:x+56,y:y+38,width:38,height:52,rx:3},g);
+  ln(g,x+52,y+44,x+98,y+44,"core");
+  const v=tx(g,x+104,y+68,"318 В","val");
+  const s=tx(g,x+12,y+68,"","st");
+  return S=>{
+    const h=52*S.cap;fl.setAttribute("y",y+90-h);fl.setAttribute("height",h);fillc(fl,S.surge&&S.fault==="mosfet"?C.bad:C.hv);op(fl,.25+.6*S.cap);
+    v.textContent=Math.round(325*S.cap)+" В";
+    s.textContent=S.charging&&S.on?"заряд ▲":(S.cap>.05&&S.run?"отдаёт ▼":(S.cap>.05?"держит":"пусто"));
+    fillc(s,S.charging&&S.on?C.hv:C.mu);paint(can,S.cap>.3?C.hv:C.mu);
+  };
+ },
+ sw(g,x,y){
+  tx(g,x+8,y+40,"+320");tx(g,x+14,y+96,"0 В");
+  const rT=ln(g,x+40,y+36,x+90,y+36),rB=ln(g,x+40,y+92,x+90,y+92);
+  ln(g,x+60,y+36,x+60,y+40);const Q1=lever(g,x+60,y+40,18);
+  const m1=ln(g,x+60,y+58,x+60,y+64),node=el("path",{d:`M${x+60},${y+64} H${x+75} V${y+122}`,class:"wl"},g);
+  const m2=ln(g,x+60,y+64,x+60,y+68);const Q2=lever(g,x+60,y+68,18);ln(g,x+60,y+86,x+60,y+92);
+  tx(g,x+30,y+54,"Q1");tx(g,x+30,y+82,"Q2");
+  const s1=tx(g,x+84,y+52,"","st"),s2=tx(g,x+84,y+82,"","st");
+  const g1=ln(g,x+4,y+90,x+44,y+90),g1b=ln(g,x+44,y+90,x+44,y+50);ln(g,x+44,y+50,x+52,y+50);
+  return S=>{
+    const bad=S.fault==="mosfet";
+    const q1=bad?true:S.g1, q2=S.g2||(bad&&S.surge&&S.flash);
+    Q1.set(q1,C.pu,bad);Q2.set(q2,C.pu,false);
+    const st=(e,o,b)=>{e.textContent=b?"ПРОБИТ":(o?"ОТКРЫТ":"закрыт");fillc(e,b?C.bad:(o?C.pu:C.mu))};
+    st(s1,q1,bad);st(s2,q2,false);
+    const rc=S.surge&&bad?C.bad:(S.cap>.1?C.hv:C.ln);paint(rT,rc,2.6);paint(rB,rc,2.6);
+    paint(node,S.sw?C.pu:C.ln,S.sw?2.6:2);paint(m1,q1?(bad?C.bad:C.pu):C.ln);paint(m2,q2?C.pu:C.ln);
+    const gc=S.sw?C.pu:C.ln;paint(g1,gc);paint(g1b,gc);
+  };
+ },
+ tr(g,x,y){
+  const fld=el("ellipse",{cx:x+75,cy:y+64,rx:24,ry:36,fill:"none","stroke-dasharray":"4 5","stroke-width":1.5},g);
+  ln(g,x+72,y+34,x+72,y+94,"core");ln(g,x+78,y+34,x+78,y+94,"core");
+  const p=el("path",{d:coilV(x+64,y+38,4,6.5,0),class:"wl"},g),s=el("path",{d:coilV(x+86,y+38,4,6.5,1),class:"wl"},g);
+  const pl=el("path",{d:`M${x+75},${y} V${y+20} H${x+64} V${y+38} M${x+64},${y+90} V${y+100} H${x+30}`,class:"wl"},g);
+  const sl=el("path",{d:`M${x+86},${y+38} H${x+120} V${y+60} H${x+146} M${x+86},${y+90} H${x+130} M${x+86},${y+64} H${x+108}`,class:"wl"},g);
+  const arr=tx(g,x+75,y+30,"▲","lb",{"text-anchor":"middle","font-size":"9"});
+  const a=tx(g,x+48,y+44,"+","pol"),b=tx(g,x+48,y+92,"+","pol");
+  tx(g,x+14,y+64,"I");tx(g,x+128,y+86,"II");
+  return S=>{
+    const on=S.sw!==0;
+    paint(fld,C.pu);op(fld,on?.8:0);fld.style.strokeDashoffset=String(-S.t*30*S.sw);
+    const c=S.fault==="schottky"&&S.surge?C.bad:C.pu;
+    [p,s,pl,sl].forEach(e=>paint(e,on?c:C.ln,on?2.6:2));
+    arr.textContent=S.sw>0?"▲":"▼";op(arr,on?1:.2);fillc(arr,C.pu);
+    op(a,S.sw>0?1:0);op(b,S.sw<0?1:0);fillc(a,C.pu);fillc(b,C.pu);
+  };
+ },
+ d(g,x,y){
+  const i1=ln(g,x+146,y+60,x+130,y+60),i1b=el("path",{d:`M${x+130},${y+60} V${y+44} H${x+104} M${x+130},${y+60} V${y+80} H${x+104}`,class:"wl"},g);
+  const D1=diode(g,x+104,y+44,x+52,y+44,7),D2=diode(g,x+104,y+80,x+52,y+80,7);
+  const j=el("path",{d:`M${x+52},${y+44} H${x+40} V${y+80} H${x+52} M${x+40},${y+62} H${x+4}`,class:"wl"},g);
+  tx(g,x+72,y+33,"D1");tx(g,x+72,y+100,"D2");
+  const s1=tx(g,x+112,y+40,"","st"),s2=tx(g,x+112,y+96,"","st");
+  return S=>{
+    const bad=S.fault==="schottky";
+    const on1=S.sw===1,on2=S.sw===-1;
+    D1.set(on1?(bad&&S.surge?C.bad:C.lv):(bad&&S.surge&&S.flash?C.bad:null),bad);D2.set(on2?C.lv:null);
+    s1.textContent=bad?"КЗ":(on1?"ведёт":"");fillc(s1,bad?C.bad:C.lv);s2.textContent=on2?"ведёт":"";fillc(s2,C.lv);
+    const k=S.sw?(bad&&S.surge?C.bad:C.pu):C.ln;paint(i1,k,S.sw?2.6:2);paint(i1b,k,S.sw?2.6:2);
+    paint(j,S.sw&&!bad?C.lv:C.ln,S.sw?2.6:2);
+  };
+ },
+ lc(g,x,y){
+  const inn=ln(g,x+146,y+60,x+120,y+60);
+  const coil=el("path",{d:coilH(x+80,y+60,4,5,1),class:"wl"},g);
+  const o=ln(g,x+80,y+60,x+4,y+60);
+  ln(g,x+50,y+60,x+50,y+70);
+  const can=el("path",{class:"part"},g);ln(g,x+50,y+92,x+50,y+100);ln(g,x+44,y+100,x+56,y+100);
+  const rip=el("polyline",{class:"wl",points:""},g);
+  tx(g,x+90,y+46,"L1");tx(g,x+66,y+86,"C · 2200 мкФ","lb",{"font-size":"8.5"});
+  const bl=tx(g,x+64,y+76,"","st");
+  return S=>{
+    const bad=S.fault==="cap";
+    const d=bad?`M${x+41},${y+92} V${y+73} Q${x+50},${y+64} ${x+59},${y+73} V${y+92} Z`:`M${x+41},${y+92} V${y+70} H${x+59} V${y+92} Z`;
+    can.setAttribute("d",d);paint(can,bad?C.bad:C.mu);can.classList.toggle("blink",bad);
+    bl.textContent=bad?"вздут":"";fillc(bl,C.bad);
+    paint(inn,S.sw?C.lv:C.ln,S.sw?2.6:2);
+    paint(coil,S.run?C.lv:C.ln,S.run?2+1.6*Math.abs(S.sw):2);op(coil,S.run?.5+.5*Math.abs(S.sw):1);
+    const live=S.v12>1;paint(o,live?C.lv:C.ln,live?2.6:2);
+    let p=[];for(let i=0;i<=16;i++){const xx=x+10+i*2.2;p.push(xx+","+(y+48-(live?S.ripAmp*2.2*Math.sin(i*1.3+S.t*9):0)))}
+    rip.setAttribute("points",p.join(" "));paint(rip,live?(bad?C.bad:C.lv):C.ln,1.6);
+  };
+ },
+ out(g,x,y){
+  const rails=[["+12",y+40,12],["+5",y+58,5],["+3,3",y+76,3.3]],fills=[],vals=[];
+  rails.forEach(([l,yy])=>{tx(g,x+10,yy+4,l);el("circle",{cx:x+38,cy:yy,r:3,class:"part"},g);
+    el("rect",{x:x+46,y:yy-4,width:56,height:8,rx:2,fill:"none",stroke:"var(--line)"},g);
+    fills.push(el("rect",{x:x+46,y:yy-4,width:0,height:8,rx:2},g));vals.push(tx(g,x+106,yy+4,"","val"))});
+  tx(g,x+10,y+100,"GND");el("circle",{cx:x+38,cy:y+96,r:3,class:"part"},g);
+  return S=>{
+    rails.forEach(([l,yy,nom],i)=>{const v=S.v12*nom/12;fills[i].setAttribute("width",Math.max(0,Math.min(56,48*v/nom)));
+      fillc(fills[i],S.fault==="cap"?C.ac:C.lv);vals[i].textContent=(v<10?v.toFixed(2):v.toFixed(1)).replace(".",",")});
+  };
+ },
+ fb(g,x,y){
+  const w1=el("path",{d:`M${x+32},${y+28} V${y+56}`,class:"wl"},g);
+  const tl=el("path",{d:`M${x+24},${y+56} H${x+40} L${x+32},${y+68} Z`},g);ln(g,x+22,y+68,x+42,y+68);ln(g,x+32,y+68,x+32,y+96);
+  ln(g,x+40,y+64,x+48,y+64);tx(g,x+14,y+108,"TL431","lb",{"font-size":"8.5"});
+  el("rect",{x:x+60,y:y+34,width:78,height:62,rx:4,class:"iso"},g);
+  const lw=el("path",{d:`M${x+32},${y+40} H${x+80} V${y+54}`,class:"wl"},g);
+  const glow=el("circle",{cx:x+80,cy:y+62,r:12},g);
+  const led=el("path",{d:`M${x+73},${y+56} H${x+87} L${x+80},${y+66} Z`},g);ln(g,x+73,y+66,x+87,y+66);ln(g,x+80,y+66,x+80,y+88);
+  const rays=el("path",{d:`M${x+92},${y+57} l12,4 M${x+92},${y+67} l12,4`,fill:"none","stroke-width":2,"stroke-dasharray":"3 3"},g);
+  const pt=el("circle",{cx:x+120,cy:y+64,r:9,class:"part"},g);ln(g,x+115,y+58,x+115,y+70);ln(g,x+115,y+61,x+124,y+56);ln(g,x+115,y+67,x+124,y+72);
+  tx(g,x+66,y+46,"свет","lb",{"font-size":"8"});
+  return S=>{
+    const k=Math.max(0,Math.min(1,S.I/7));
+    fillc(glow,C.fb);op(glow,k*.55);fillc(led,k>.05?C.fb:C.mu);fillc(tl,S.v12>1?C.fb:C.mu);
+    paint(rays,C.fb);op(rays,k);rays.style.strokeDashoffset=String(-S.t*20);
+    paint(w1,S.v12>1?C.lv:C.ln,S.v12>1?2.6:2);paint(lw,k>.05?C.fb:C.ln,k>.05?2.4:2);paint(pt,k>.05?C.fb:C.mu);
+  };
+ },
+ pwm(g,x,y){
+  el("rect",{x:x+44,y:y+36,width:62,height:56,rx:3,class:"part"},g);
+  [44,56,68,80].forEach(o=>{ln(g,x+36,y+o,x+44,y+o);ln(g,x+106,y+o,x+114,y+o)});
+  tx(g,x+75,y+56,"TL494","val",{"text-anchor":"middle"});
+  const d=tx(g,x+75,y+74,"","st",{"text-anchor":"middle"});
+  const osc=el("circle",{cx:x+52,cy:y+44,r:2.5},g);
+  const l1=el("circle",{cx:x+124,cy:y+56,r:5},g),l2=el("circle",{cx:x+124,cy:y+80,r:5},g);
+  tx(g,x+132,y+59,"G1","lb",{"font-size":"8"});tx(g,x+132,y+83,"G2","lb",{"font-size":"8"});
+  const fbIn=ln(g,x+4,y+60,x+36,y+60),gOut=ln(g,x+114,y+60,x+146,y+60);
+  return S=>{
+    fillc(l1,S.g1?C.pu:"var(--grid)");fillc(l2,S.g2?C.pu:"var(--grid)");
+    fillc(osc,S.run&&(S.t*6%1<.5)?C.pu:C.mu);
+    d.textContent=!S.on?"нет питания":(!S.run?"ЗАЩИТА":"ширина "+Math.round(S.duty*100)+"%");
+    fillc(d,!S.run?C.bad:C.pu);
+    paint(fbIn,S.I>.2?C.fb:C.ln,S.I>.2?2.4:2);paint(gOut,S.sw?C.pu:C.ln,S.sw?2.6:2);
+  };
+ }
+};
+
+/* ---------- build svg ---------- */
+const gW=document.getElementById("wires"),gB=document.getElementById("blocks"),gP=document.getElementById("probes");
+WIRES.forEach(w=>{const g=el("g",{class:"wire"},gW);const p=el("path",{class:"base",d:w.d},g);w.g=g;w.len=p.getTotalLength();w.p=p;
+  w.n=Math.max(3,Math.round(w.len/11));w.o=0;w.dots=[];for(let i=0;i<w.n;i++)w.dots.push(el("circle",{r:3.2},g))});
+ORDER.forEach((id,i)=>{
+  const b=B[id],x=X[b.c],y=Y[b.r];b.x=x;b.y=y;
+  const g=el("g",{class:"blk",tabindex:"0",role:"button","aria-label":b.n},gB);
+  el("rect",{class:"box",x,y,width:W,height:H,rx:10},g);
+  tx(g,x+10,y+19,String(i+1).padStart(2,"0"),"num");tx(g,x+32,y+19,b.n,"nm");tx(g,x+10,y+115,b.s,"sub");
+  const art=el("g",{},g);b.up=BUILD[id](art,x,y);b.g=g;
+  g.addEventListener("click",()=>{stopTour();select(id)});
+  g.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();stopTour();select(id)}});
+});
+
+/* ---------- model ---------- */
+let load=.4,speed=1,simT=0,capLvl=1,I=6-4*load,v12=12,last=performance.now(),fault=null;
+const hist=[];
+const Itarget=()=>6-4*load;
+const sq=(ph,dt)=>{ph=((ph%1)+1)%1;return ph<dt?1:(ph>=.5&&ph<.5+dt?-1:0)};
+let S={};
+const duty=()=>S.dutyOver||Math.min(.46,.18+.075*(6-I)+.04);
+const vdev=()=>(Itarget()-I)*.45;
+const ripple=()=>8+22*load;
+const fmt=(v,d=1)=>v.toFixed(d).replace(".",",");
+
+function compute(now,dt){
+  const sdt=dt*speed;simT+=sdt;
+  let on=true,run=true,surge=false,fuse=false,surgeIn=false,dutyOver=0;
+  const el=fault?now-fault.t0:0,fid=fault?fault.id:null;
+  if(fid==="mosfet"||fid==="bridge"){if(el<2600){surge=true;surgeIn=true}else{fuse=true;on=false;run=false}}
+  if(fid==="schottky"){run=(el%2600)<700;surge=run;dutyOver=run?.46:0}
+  const acV=Math.sin(2*Math.PI*simT*.4);
+  let charging=false;
+  if(on){const a=Math.abs(acV);
+    if(surge&&fid==="mosfet")capLvl=Math.max(.15,capLvl-sdt*.5);
+    if(a>=capLvl){capLvl=a;charging=true}else capLvl=Math.max(0,capLvl-sdt*(run?(.03+.09*load)/1.25:.004))}
+  else capLvl=Math.max(0,capLvl-dt*.05);
+  S={on,run,surge,surgeIn,fuse,fault:fid,acV,charging,cap:capLvl,dutyOver,t:simT,flash:Math.floor(now/140)%2===0};
+  S.duty=duty();
+  S.sw=run?sq(simT*.9,S.duty):0;S.g1=S.sw===1;S.g2=S.sw===-1;
+  let tgt=12+vdev();if(fuse||fid==="schottky")tgt=0;
+  if(fid==="cap")tgt+=.75*Math.sin(simT*11)+.35*Math.sin(simT*29);
+  v12+=(tgt-v12)*(1-Math.exp(-dt/(tgt<1?.15:.06)));
+  let it=v12>8?Itarget():0;if(fid==="cap")it+=1.3*Math.sin(now/80);
+  I+=(it-I)*(1-Math.exp(-dt/.35));I=Math.max(0,I);
+  S.v12=v12;S.I=I;S.ripAmp=fid==="cap"?2.6:.35;
+}
+function wireV(w){
+  const V=55*speed,s=S,surgeRed=s.surge&&((s.fault==="mosfet"&&["in","emi","br","cap"].includes(w.f))||(s.fault==="bridge"&&["in","emi"].includes(w.f))||(s.fault==="schottky"&&["sw","tr"].includes(w.f)));
+  let v=0;
+  switch(w.f){
+   case"in":case"emi":v=s.on?s.acV*V*1.4:0;if(s.surge&&s.surgeIn)v=(s.fault==="bridge"&&s.acV<0?-1:1)*V*5;break;
+   case"br":v=s.charging&&s.on?V*2.2:0;if(surgeRed)v=V*5;break;
+   case"cap":v=s.run?Math.abs(s.sw)*V*1.6:0;if(surgeRed)v=V*5;break;
+   case"sw":v=s.sw*V*1.6;break;
+   case"tr":v=Math.abs(s.sw)*V*1.6*(surgeRed?2.5:1);break;
+   case"d":v=s.fault==="schottky"?0:Math.abs(s.sw)*V*1.3;break;
+   case"lc":v=s.v12>1?V*(.4+.9*load)*(s.v12/12):0;break;
+   case"out":v=s.v12>1?V*.45:0;break;
+   case"fb":v=V*.5*(s.I/6);break;
+   case"pwm":v=s.sw?V*1.3:0;break;
+  }
+  return {v,red:surgeRed&&Math.abs(v)>0};
+}
+const KC={ac:C.ac,hv:C.hv,pu:C.pu,lv:C.lv,fb:C.fb};
+
+/* ---------- info ---------- */
+const INFO={
+ in:{role:"Точка входа переменного напряжения из розетки.",
+  text:["Сетевое напряжение 230 В с частотой 50 Гц приходит через разъём. Его амплитуда около 325 В. На схеме видно, как плюс и минус на проводах L и N меняются местами, а точки тока бегают туда-обратно.","Предохранитель FU1 перегорает при коротком замыкании. Термистор NTC в момент включения ограничивает бросок тока, пока заряжается большой конденсатор."],
+  facts:()=>[["Напряжение","230 В ~ (пик 325 В)"],["Частота","50 Гц"],["Защита","предохранитель 5 А, NTC"]],
+  warn:"Опасное для жизни напряжение. Не открывайте блок, включённый в сеть."},
+ emi:{role:"Не пускает помехи из блока в сеть и из сети в блок.",
+  text:["Состоит из синфазного дросселя и конденсаторов классов X и Y. На схеме слева приходит «грязное» напряжение с помехами, а после дросселя линия чистая.","На частоту 50 Гц фильтр почти не действует: сетевое напряжение проходит дальше, а высокочастотный шум гасится в дросселе и конденсаторе CX."],
+  facts:()=>[["Состав","дроссель, X- и Y-конденсаторы"],["Подавляет","150 кГц – 30 МГц"]]},
+ br:{role:"Превращает переменный ток в пульсирующий постоянный.",
+  text:["Четыре диода включены ромбом. Когда сверху плюс, ток идёт через D1 и D4, когда минус — через D2 и D3. Поэтому на выходе плюс всегда сверху.","Обратите внимание: диоды загораются только на пиках синусоиды. Ток течёт лишь тогда, когда напряжение сети выше напряжения на конденсаторе."],
+  facts:()=>[["Выход","0…325 В, пульсирующее"],["Частота пульсаций","100 Гц"],["Падение на диоде","0,5–0,7 В"]]},
+ cap:{role:"Сглаживает пульсации и запасает энергию.",
+  text:["Большой электролит заряжается на пиках (индикатор «заряд ▲») и отдаёт энергию ключам между ними («отдаёт ▼»). Получается почти ровное постоянное напряжение около 320 В.","Чем больше нагрузка, тем сильнее конденсатор успевает разрядиться между пиками и тем больше пульсации. В современных блоках перед ним стоит активный корректор мощности (PFC)."],
+  facts:()=>[["Напряжение",Math.round(325*S.cap)+" В ="],["Пульсации",fmt(ripple(),0)+" В"]],
+  warn:"Конденсатор держит заряд даже после отключения из розетки."},
+ pwm:{role:"Мозг блока: решает, какой ширины будут импульсы.",
+  text:["Микросхема TL494 генерирует импульсы 65 кГц и по очереди открывает ключи через выходы G1 и G2. Лампочки G1 и G2 на схеме показывают, на какой ключ сейчас подан сигнал.","Ширину импульсов она выбирает по сигналу обратной связи. Выход просел — импульсы шире, выход завышен — уже. Если ток слишком велик, срабатывает защита и импульсы прекращаются."],
+  facts:()=>[["Частота","65 кГц"],["Ширина импульса",Math.round(S.duty*100)+" % периода"],["Управляет","затворами Q1 и Q2"]]},
+ sw:{role:"Нарезают 320 В в высокочастотные импульсы.",
+  text:["Транзисторы показаны как выключатели. «Открыт» значит проводит ток, «закрыт» — не проводит. Q1 и Q2 открываются строго по очереди и подключают обмотку трансформатора то к плюсу, то к минусу.","Между импульсами есть пауза, когда закрыты оба. Если они откроются одновременно, +320 В замкнутся на минус — так и сгорают ключи. Транзистор всегда либо полностью открыт, либо закрыт, поэтому почти не греется."],
+  facts:()=>[["На обмотке","±160 В"],["Частота","65 кГц"],["Сейчас",S.g1?"открыт Q1":S.g2?"открыт Q2":"оба закрыты"]]},
+ tr:{role:"Понижает напряжение и отделяет выходы от сети.",
+  text:["Импульсы в первичной обмотке I создают магнитное поле в ферритовом сердечнике (пунктирное кольцо). Стрелка показывает направление поля: оно меняется с каждым импульсом.","Поле наводит напряжение во вторичной обмотке II. Соотношение витков понижает 160 В примерно до 25 В. Между обмотками нет электрического контакта — это гальваническая развязка."],
+  facts:()=>[["Вторичная обмотка","±25 В"],["Сердечник","феррит"],["Изоляция","до 3000 В"]]},
+ d:{role:"Снова выпрямляют, теперь уже высокочастотный ток.",
+  text:["Два диода Шоттки работают по очереди: D1 ведёт, когда плюс на верхнем конце обмотки, D2 — когда на нижнем. Средняя точка обмотки соединена с землёй.","Шоттки выбирают за скорость переключения и малое падение напряжения, около 0,3 В. Они греются, поэтому стоят на радиаторе."],
+  facts:()=>[["Выход","импульсы 0…25 В"],["Падение","0,15–0,4 В"]]},
+ lc:{role:"Превращает импульсы в ровное постоянное напряжение.",
+  text:["Дроссель L1 запасает энергию во время импульса (утолщается) и отдаёт её в паузе. Конденсатор сглаживает остатки. Маленькая волна над выходом показывает уровень пульсаций.","На выходе получается среднее значение импульсов. Чем шире импульсы, тем выше это среднее."],
+  facts:()=>[["Выход",fmt(S.v12,2)+" В"],["Пульсации",S.fault==="cap"?"≈ 1,5 В — недопустимо":"< 120 мВ (норма ATX)"]]},
+ out:{role:"Готовые напряжения для компонентов компьютера.",
+  text:["+12 В питает процессор и видеокарту, +5 В и +3,3 В идут на накопители, USB и чипсет.","Резко сдвиньте ползунок нагрузки: напряжение на мгновение просядет или подскочит, а затем обратная связь вернёт его к 12 В."],
+  facts:()=>[["+12 В",fmt(S.v12,2)+" В"],["Допуск","±5 % (11,40–12,60 В)"]]},
+ fb:{role:"Сообщает контроллеру, всё ли в порядке на выходе.",
+  text:["TL431 сравнивает часть выходного напряжения с эталоном 2,5 В. Если выход выше нормы, она пропускает больше тока через светодиод оптопары и он светит ярче.","Свет попадает на фототранзистор с первичной стороны. Так сигнал проходит через развязку без электрического контакта, и ШИМ сужает или расширяет импульсы."],
+  facts:()=>[["Эталон","2,5 В"],["Ток светодиода",fmt(S.I,1)+" мА"],["Связь","оптическая"]]}
+};
+
+/* ---------- oscilloscope ---------- */
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const SC={
+ in:{t:"Напряжение в сети",win:"окно 40 мс",y:[-350,350],ticks:[325,0,-325],gate:"in",s:[{c:"--ac",l:"U сети",f:(x,p)=>325*Math.sin(2*Math.PI*(2*x+p))}],h:"Два периода синусоиды 50 Гц."},
+ emi:{t:"До и после фильтра",win:"окно 40 мс",y:[-350,350],ticks:[325,0,-325],gate:"on",s:[
+   {c:"--muted",l:"до фильтра",a:.45,f:(x,p)=>325*Math.sin(2*Math.PI*(2*x+p))+28*Math.sin(2*Math.PI*x*90)*Math.sin(2*Math.PI*x*7)+10*Math.sin(x*977)},
+   {c:"--ac",l:"после фильтра",f:(x,p)=>325*Math.sin(2*Math.PI*(2*x+p))}],h:"Высокочастотный шум срезан, синусоида осталась."},
+ br:{t:"После моста",win:"окно 40 мс",y:[0,350],ticks:[325,0],gate:"on",s:[{c:"--muted",l:"вход",a:.35,f:(x,p)=>325*Math.sin(2*Math.PI*(2*x+p))},{c:"--hv",l:"выход моста",f:(x,p)=>Math.abs(325*Math.sin(2*Math.PI*(2*x+p)))}],h:"Отрицательные полуволны перевёрнуты вверх."},
+ cap:{t:"На конденсаторе",win:"окно 40 мс",y:[0,350],ticks:[325,0],gate:"cap",s:[{c:"--muted",l:"после моста",a:.35,f:(x,p)=>Math.abs(325*Math.sin(2*Math.PI*(2*x+p)))},{c:"--hv",l:"на конденсаторе",f:(x,p)=>{const u=4*x+2*p;const fr=((u-.5)%1+1)%1;return Math.max(325-ripple()*fr,Math.abs(325*Math.sin(Math.PI*u)))}}],h:"Почти ровное напряжение с «пилой» пульсаций."},
+ pwm:{t:"Импульсы на затворах",win:"окно 30 мкс",y:[-1,15],ticks:[12,0],gate:"run",s:[{c:"--pulse",l:"G1 → Q1",f:(x,p)=>sq(2*x+p,S.duty)===1?12:0},{c:"--fb",l:"G2 → Q2",a:.7,f:(x,p)=>sq(2*x+p,S.duty)===-1?11:0}],h:"Сдвиньте нагрузку вправо — импульсы станут шире."},
+ sw:{t:"На первичной обмотке",win:"окно 30 мкс",y:[-200,200],ticks:[160,0,-160],gate:"run",s:[{c:"--pulse",l:"U обмотки",f:(x,p)=>160*sq(2*x+p,S.duty)}],h:"Ключи по очереди дают +160 и −160 В, между ними пауза."},
+ tr:{t:"На вторичной обмотке",win:"окно 30 мкс",y:[-30,30],ticks:[25,0,-25],gate:"run",s:[{c:"--pulse",l:"U вторичной",f:(x,p)=>25*sq(2*x+p,S.duty)}],h:"Та же форма, но в ~6 раз ниже и без связи с сетью."},
+ d:{t:"После диодов",win:"окно 30 мкс",y:[0,30],ticks:[25,12,0],gate:"run",s:[{c:"--muted",l:"вторичная",a:.35,f:(x,p)=>25*sq(2*x+p,S.duty)},{c:"--lv",l:"после диодов",f:(x,p)=>25*Math.abs(sq(2*x+p,S.duty))}],h:"Все импульсы теперь положительные."},
+ lc:{t:"После LC-фильтра",win:"окно 30 мкс",y:[0,30],ticks:[25,12,0],gate:"run",s:[{c:"--muted",l:"импульсы",a:.35,f:(x,p)=>25*Math.abs(sq(2*x+p,S.duty))},{c:"--lv",l:"выход",f:(x,p)=>S.v12+S.ripAmp*Math.sin(2*Math.PI*(4*x+2*p))}],h:"Остаётся среднее значение импульсов. Пульсации увеличены для наглядности."},
+ out:{hist:"v",t:"Выходные напряжения",win:"последние 4 с",y:[0,14],ticks:[12,5,3.3,0],s:[{c:"--lv",l:"+12 В",k:1},{c:"--ac",l:"+5 В",k:5/12},{c:"--fb",l:"+3,3 В",k:3.3/12}],h:"Двигайте ползунок нагрузки и смотрите на провал и восстановление."},
+ fb:{hist:"i",t:"Ток светодиода оптопары",win:"последние 4 с",y:[0,8],ticks:[6,4,2,0],s:[{c:"--fb",l:"ток, мА"}],h:"Больше нагрузка → ток меньше → ШИМ расширяет импульсы."}
+};
+
+/* ---------- faults ---------- */
+const tp=(id,dx,dy)=>[B[id].x+dx,B[id].y+dy];
+const DISCHARGE={t:"Отключите блок и проверьте, что большой конденсатор разряжен",mode:"vdc",r:["cap",60,34],b:["cap",92,94],rt:"плюс большого конденсатора",bt:"минус конденсатора",
+  states:[["Разряжен","0,8","В","Можно работать с платой."],["Заряжен","312","В","Опасно! Разрядите через резистор 10 кОм 5 Вт, держа его изолированным пинцетом, и повторите замер."]]};
+const FUSE={t:"Прозвоните предохранитель",mode:"beep",r:["in",50,44],b:["in",86,44],rt:"один вывод FU1",bt:"другой вывод FU1",
+  states:[["Цел","0,1","Ω","Прибор пищит: предохранитель цел."],["Сгорел","OL","","Обрыв цепи. Сам по себе он не сгорает — ищем причину дальше."]]};
+const NTC={t:"Проверьте термистор NTC",mode:"ohm",r:["in",58,84],b:["in",88,84],rt:"вывод NTC",bt:"второй вывод NTC",
+  states:[["Исправен","4,7","Ω","Холодный термистор: 2–10 Ω."],["Обрыв","OL","","Термистор лопнул от броска тока — заменить."]]};
+const QDS=(lab)=>({t:"Проверьте ключ Q1 между стоком и истоком",mode:"diode",r:["sw",60,62],b:["sw",60,38],rt:"исток Q1 (S)",bt:"сток Q1 (D)",
+  states:[["Исправен","0,47","В","Это встроенный диод транзистора. Поменяйте щупы местами — должно быть OL."],[lab,"0,00","В","Пищит в обе стороны: сток и исток замкнуты. Транзистор под замену."]]});
+const FAULTS={
+ mosfet:{name:"Пробит силовой ключ",culprit:"sw",status:"АВАРИЯ: КЗ ключа → сгорел предохранитель",
+  why:"Транзистор Q1 пробит и стал проводником. Как только открывается Q2, +320 В замыкаются на минус через оба ключа. Ток мгновенно растёт, и предохранитель сгорает за доли секунды.",
+  sym:["Блок не включается, вентилятор не крутится","Предохранитель сгорел, часто почернел изнутри","Мог быть хлопок или запах гари при включении"],
+  steps:[DISCHARGE,FUSE,QDS("Пробит"),
+   {t:"Проверьте диоды моста (пробой ключа часто задевает и их)",mode:"diode",r:["br",41,60],b:["br",75,31],rt:"вход ~ моста (анод D1)",bt:"выход + моста (катод D1)",states:[["Исправен","0,52","В","Нормальное падение на диоде. В обратную сторону — OL."],["Пробит","0,00","В","Диод замкнут — мост под замену."]]},
+   NTC],
+  note:"Замените ключ и предохранитель, проверьте резисторы в цепи затвора (10–47 Ω) и второй ключ. Первое включение — через лампу накаливания 60–100 Вт, включённую последовательно с блоком: при оставшемся КЗ лампа ярко горит, а детали целы."},
+ bridge:{name:"Пробит диодный мост",culprit:"br",status:"АВАРИЯ: пробой моста → сгорел предохранитель",
+  why:"Диод D1 пробит и проводит в обе стороны. На отрицательной полуволне ток идёт через D1 и D3 напрямую из сети обратно в сеть, минуя всё остальное. Это короткое замыкание сети.",
+  sym:["Блок не включается","Предохранитель сгорел, иногда выбивает автомат в щитке","На мосту может быть трещина или потемнение"],
+  steps:[DISCHARGE,FUSE,
+   {t:"Проверьте диод D1 моста в прямом направлении",mode:"diode",r:["br",41,60],b:["br",75,31],rt:"вход ~ (анод D1)",bt:"выход + (катод D1)",states:[["Исправен","0,52","В","Диод открыт в прямом направлении: 0,4–0,7 В."],["Пробит","0,00","В","Пищит — диод замкнут."]]},
+   {t:"Поменяйте щупы и проверьте D1 в обратном направлении",mode:"diode",r:["br",75,31],b:["br",41,60],rt:"выход + (катод D1)",bt:"вход ~ (анод D1)",states:[["Исправен","OL","","В обратную сторону диод ток не пропускает."],["Пробит","0,00","В","Проводит в обе стороны — пробит."]]},
+   QDS("Тоже пробит")],
+  note:"Проверьте все 4 диода моста одинаково: прямое падение 0,4–0,7 В, обратное OL. Мост меняют целиком. Пробой моста часто убивает и ключи — проверьте их до включения."},
+ schottky:{name:"КЗ выходного диода Шоттки",culprit:"d",status:"АВАРИЯ: КЗ на выходе → защита, «икание»",
+  why:"Диод D1 пробит и замыкает половину вторичной обмотки. Через трансформатор идёт огромный ток, схема защиты в ШИМ-контроллере замечает перегрузку и выключает импульсы. Через мгновение пробует снова — это режим «икания».",
+  sym:["Вентилятор дёргается и останавливается","Слышно тиканье или щелчки","Предохранитель цел, на большом конденсаторе есть 320 В"],
+  steps:[
+   {t:"Под напряжением: убедитесь, что первичная сторона в порядке",mode:"vdc",r:["cap",60,34],b:["cap",92,94],rt:"плюс большого конденсатора",bt:"минус конденсатора",states:[["Есть","318","В","Напряжение есть, предохранитель цел — неисправность на вторичной стороне. Мерьте одной рукой, щупами с изоляцией."],["Нет","0","В","Тогда неисправность на первичной стороне."]]},
+   {t:"Отключите блок. Измерьте сопротивление шины +12 В на землю",mode:"ohm",r:["out",38,40],b:["out",38,96],rt:"контакт +12 В",bt:"контакт GND",states:[["Норма","1,2","кΩ","Показания растут: заряжаются конденсаторы. КЗ нет."],["КЗ","0,4","Ω","Шина замкнута на землю. Ищем пробитый элемент на ней."]]},
+   {t:"Проверьте диод D1 в прямом направлении",mode:"diode",r:["d",104,44],b:["d",52,44],rt:"анод D1 (от трансформатора)",bt:"катод D1 (общий выход)",states:[["Исправен","0,21","В","Шоттки: падение 0,15–0,4 В."],["Пробит","0,00","В","Пищит в обе стороны."]]},
+   {t:"Выпаяйте диод и проверьте в обратном направлении",mode:"diode",r:["d",52,44],b:["d",104,44],rt:"катод D1",bt:"анод D1",states:[["Исправен","OL","","Диод цел, КЗ даёт другой элемент на шине."],["Пробит","0,00","В","Подтверждено: диод замкнут."]]}],
+  note:"Сдвоенный диод в корпусе TO-220 содержит два диода — проверьте оба. После замены ещё раз измерьте сопротивление шины и включите блок с небольшой нагрузкой."},
+ cap:{name:"Высох выходной конденсатор",culprit:"lc",status:"НЕИСПРАВНОСТЬ: большие пульсации на выходе",
+  why:"Электролит высох: его ёмкость упала, а внутреннее сопротивление (ESR) выросло. Конденсатор больше не сглаживает импульсы, и выходное напряжение «дрожит». Блок работает, но компьютер ведёт себя нестабильно.",
+  sym:["Случайные перезагрузки или зависания под нагрузкой","Блок пищит или свистит","Верх конденсатора вздут, на плате коричневый налёт"],
+  steps:[
+   {t:"Осмотрите конденсаторы на выходе",mode:"eye",r:["lc",50,66],rt:"верхняя крышка конденсатора",bt:"не нужен",states:[["Норма","———","","Верх плоский, крестовая насечка ровная."],["Вздут","———","","Верх выпуклый, на плате налёт электролита."]]},
+   {t:"Под нагрузкой измерьте постоянное напряжение +12 В",mode:"vdc",r:["out",38,40],b:["out",38,96],rt:"контакт +12 В",bt:"контакт GND",states:[["Норма","12,05","В","В допуске ±5 %: 11,40–12,60 В."],["Скачет","11,3…12,8","В","Напряжение «плавает»: пульсации не сглаживаются."]]},
+   {t:"Переключите на переменное напряжение и измерьте ту же шину",mode:"vac",r:["out",38,40],b:["out",38,96],rt:"контакт +12 В",bt:"контакт GND",states:[["Норма","0,02","В","Переменной составляющей почти нет."],["Пульсации","0,65","В","На постоянной шине много переменной составляющей."]]},
+   {t:"Выпаяйте конденсатор и измерьте ёмкость",mode:"cap",r:["lc",50,70],b:["lc",50,92],rt:"вывод «+» конденсатора",bt:"вывод «−» (полоса на корпусе)",states:[["Норма","2150","мкФ","Номинал 2200 мкФ, допуск ±20 %."],["Высох","310","мкФ","Ёмкость упала в разы — заменить."]]}],
+  note:"Ставьте конденсатор той же ёмкости и напряжения, с низким ESR (Low ESR) и на 105 °C. Обычно меняют все конденсаторы на выходных шинах сразу. Точнее всего состояние покажет ESR-метр."}
+};
+const MODES=[["vdc","V⎓"],["vac","V~"],["ohm","Ω"],["beep","•)))"],["diode","▷|"],["cap","⊣⊢"],["eye","осмотр"]];
+
+const $=id=>document.getElementById(id);
+const fbar=$("fbar");
+[["",'Норма'],["mosfet","КЗ ключа"],["bridge","Пробой моста"],["schottky","КЗ диода Шоттки"],["cap","Высох конденсатор"]].forEach(([id,l])=>{
+  const b=document.createElement("button");b.type="button";b.className="fbtn"+(id?" bad":"");b.textContent=l;b.dataset.f=id;b.setAttribute("aria-pressed",id?"false":"true");
+  b.addEventListener("click",()=>setFault(id));fbar.insertBefore(b,$("status"));
+});
+const again=document.createElement("button");again.type="button";again.textContent="↻ Повторить аварию";again.hidden=true;
+again.addEventListener("click",()=>{if(fault){fault.t0=performance.now();if(fault.id!=="cap")capLvl=1}});fbar.insertBefore(again,$("status"));
+
+let stepI=0,stateI=1;
+function setFault(id){
+  stopTour();
+  fbar.querySelectorAll(".fbtn").forEach(b=>b.setAttribute("aria-pressed",b.dataset.f===id?"true":"false"));
+  ORDER.forEach(k=>B[k].g.classList.remove("culprit"));
+  if(!id){fault=null;capLvl=1;$("diag").hidden=true;again.hidden=true;gP.innerHTML="";$("status").textContent="Блок работает нормально";$("status").classList.remove("alarm");return}
+  const F=FAULTS[id];fault={id,t0:performance.now()};capLvl=1;
+  B[F.culprit].g.classList.add("culprit");
+  $("diag").hidden=false;again.hidden=id==="cap";
+  $("status").textContent=F.status;$("status").classList.add("alarm");
+  $("gName").textContent=F.name;$("gWhy").textContent=F.why;
+  $("gSym").innerHTML=F.sym.map(s=>`<li>${s}</li>`).join("");
+  $("gNote").textContent=F.note;
+  $("gSteps").innerHTML="";
+  F.steps.forEach((s,i)=>{const li=document.createElement("li"),b=document.createElement("button");b.type="button";
+    b.innerHTML=`<b>${i+1}</b><span>${s.t}</span>`;b.addEventListener("click",()=>setStep(i));li.appendChild(b);$("gSteps").appendChild(li)});
+  select(F.culprit);setStep(0);
+}
+function setStep(i){
+  stepI=i;stateI=1;const F=FAULTS[fault.id],s=F.steps[i];
+  $("gSteps").querySelectorAll("button").forEach((b,j)=>b.setAttribute("aria-current",j===i?"true":"false"));
+  $("mModes").innerHTML=MODES.map(([k,l])=>`<span class="${k===s.mode?"act":""}">${l}</span>`).join("");
+  $("mR").textContent=s.rt;$("mB").textContent=s.bt||"не нужен";
+  $("mTog").innerHTML="";
+  s.states.forEach((st,j)=>{const b=document.createElement("button");b.type="button";b.textContent=st[0];b.addEventListener("click",()=>{stateI=j;renderReading()});$("mTog").appendChild(b)});
+  renderReading();drawProbes(s);
+}
+function renderReading(){
+  const s=FAULTS[fault.id].steps[stepI],st=s.states[stateI];
+  $("mVal").textContent=st[1];$("mUnit").textContent=st[2];$("mMean").textContent=st[3];
+  $("mTog").querySelectorAll("button").forEach((b,j)=>b.setAttribute("aria-pressed",j===stateI?"true":"false"));
+}
+function drawProbes(s){
+  gP.innerHTML="";
+  const probe=(pt,color,lab,dx)=>{if(!pt)return;const [px,py]=tp(...pt);const g=el("g",{},gP);
+    el("circle",{cx:px,cy:py,r:6,class:"probe-ring",style:`stroke:${color}`},g);
+    el("line",{x1:px,y1:py,x2:px+dx,y2:py-30,style:`stroke:${color};stroke-width:6;stroke-linecap:round`},g);
+    el("line",{x1:px,y1:py,x2:px+dx*.25,y2:py-7.5,style:`stroke:${color};stroke-width:2`},g);
+    el("circle",{cx:px,cy:py,r:3,style:`fill:${color}`},g);
+    const t=el("text",{x:px+dx*1.1,y:py-34,"text-anchor":"middle",class:"st",style:`fill:${color}`},g);t.textContent=lab};
+  probe(s.r,"var(--probe-r)","+",-16);probe(s.b,"var(--probe-b)","COM",16);
+}
+
+/* ---------- selection & detail ---------- */
+let cur="in";
+function renderFacts(){$("dFacts").innerHTML=INFO[cur].facts().map(([a,b])=>`<dt>${a}</dt><dd>${b}</dd>`).join("")}
+function select(id){
+  cur=id;const b=B[id],inf=INFO[id],sc=SC[id];renderDetail(id);
+  ORDER.forEach(k=>B[k].g.classList.toggle("on",k===id));
+  WIRES.forEach(w=>w.g.classList.toggle("hot",w.f===id||w.t===id));
+  $("dStep").textContent=`Шаг ${ORDER.indexOf(id)+1} из ${ORDER.length}`;
+  $("dName").textContent=b.n;$("dRole").textContent=inf.role;
+  $("dText").innerHTML=inf.text.map(t=>`<p>${t}</p>`).join("");renderFacts();
+  $("dWarn").hidden=!inf.warn;$("dWarn").textContent=inf.warn||"";
+  $("sTitle").textContent=sc.t;$("sWin").textContent=sc.win;$("sHint").textContent=sc.h;
+  $("sKeys").innerHTML=sc.s.map(s=>`<span><i style="background:var(${s.c});opacity:${s.a||1}"></i>${s.l}</span>`).join("");
+}
+let tour=null;
+function stopTour(){if(tour){clearInterval(tour);tour=null;$("play").textContent="▶ Обход по шагам"}}
+$("play").addEventListener("click",()=>{
+  if(tour){stopTour();return}
+  let i=ORDER.indexOf(cur);select(ORDER[i]);
+  tour=setInterval(()=>{i=(i+1)%ORDER.length;select(ORDER[i])},7000);$("play").textContent="❚❚ Пауза";
+});
+const loadR=$("loadR"),spdR=$("spdR");
+loadR.addEventListener("input",()=>{load=loadR.value/100;$("loadO").textContent=loadR.value+"%"});
+spdR.addEventListener("input",()=>{speed=spdR.value/100;$("spdO").textContent=fmt(speed,1)+"×"});
+
+/* ---------- canvas ---------- */
+const cv=$("cv"),ctx=cv.getContext("2d");
+function size(){const r=cv.getBoundingClientRect(),d=devicePixelRatio||1;cv.width=r.width*d;cv.height=r.height*d;ctx.setTransform(d,0,0,d,0,0)}
+addEventListener("resize",size);size();
+const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;
+function gateOf(sc){if(!sc.gate||sc.gate==="in")return 1;if(sc.gate==="on")return S.on?1:0;if(sc.gate==="run")return S.run?1:0;return 1}
+function draw(now){
+  const w=cv.clientWidth,h=cv.clientHeight,sc=SC[cur];
+  const L=58,R=12,T=14,Bm=22,pw=w-L-R,ph=h-T-Bm,[y0,y1]=sc.y,Yp=v=>T+ph*(1-(v-y0)/(y1-y0));
+  ctx.clearRect(0,0,w,h);ctx.strokeStyle=css("--grid");ctx.lineWidth=1;
+  for(let i=0;i<=10;i++){const x=L+pw*i/10;ctx.beginPath();ctx.moveTo(x,T);ctx.lineTo(x,T+ph);ctx.stroke()}
+  ctx.font="11px "+css("--f-mono");ctx.fillStyle=css("--muted");ctx.textAlign="right";ctx.textBaseline="middle";
+  sc.ticks.forEach(v=>{const y=Yp(v);ctx.strokeStyle=v===0?css("--line"):css("--grid");ctx.beginPath();ctx.moveTo(L,y);ctx.lineTo(L+pw,y);ctx.stroke();
+    ctx.fillText((v>0&&y0<0?"+":"")+String(v).replace(".",",")+(sc.hist==="i"?" мА":" В"),L-6,y)});
+  ctx.textAlign="left";ctx.textBaseline="alphabetic";ctx.fillText(sc.win,L,h-6);
+  ctx.save();ctx.beginPath();ctx.rect(L,T-2,pw,ph+4);ctx.clip();
+  if(sc.hist){
+    sc.s.forEach(s=>{ctx.strokeStyle=css(s.c);ctx.lineWidth=2.2;ctx.beginPath();
+      hist.forEach((p,j)=>{const x=L+pw*(1-(now-p.t)/4000),v=sc.hist==="v"?p.v*s.k:p.i;j?ctx.lineTo(x,Yp(v)):ctx.moveTo(x,Yp(v))});ctx.stroke()});
+  }else{
+    const p=reduce?0:(now/1000*.25)%1,gt=gateOf(sc);
+    sc.s.forEach(s=>{ctx.globalAlpha=s.a||1;ctx.strokeStyle=css(s.c);ctx.lineWidth=s.a?1.5:2.2;ctx.beginPath();
+      for(let k=0;k<=pw;k++){let v=sc.gate==="cap"&&!S.on?325*S.cap:s.f(k/pw,p)*gt;const y=Yp(v);k?ctx.lineTo(L+k,y):ctx.moveTo(L,y)}ctx.stroke()});
+    ctx.globalAlpha=1;
+  }
+  ctx.restore();
+}
+
+/* ---------- detailed schematics ---------- */
+const sgn=v=>v>0?1:v<0?-1:0;
+const vIn=S=>S.fuse?0:(S.surge&&S.surgeIn?(S.fault==="bridge"&&S.acV<0?-5:5):(S.charging&&S.on?2*sgn(S.acV):0));
+const vRun=S=>S.run?Math.abs(S.sw)*1.6:0;
+const vOut=S=>S.v12>1?(.4+.9*load)*S.v12/12:0;
+const vLed=S=>S.I/6*1.1;
+const rIn=S=>S.surge&&S.surgeIn, rMos=S=>S.surge&&S.fault==="mosfet", rSch=S=>S.surge&&S.fault==="schottky";
+const onAC=S=>vIn(S)?(rIn(S)?C.bad:C.ac):null;
+const DET={
+ in:{
+  parts:{
+   SA1:{n:"Выключатель питания",v:"250 В · 10 А",why:"Клавиша на задней стенке. Разрывает фазный провод L и полностью обесточивает блок.",chk:"Режим прозвонки. В положении «I» — 0 Ω и писк, в положении «O» — OL.",fail:"Подгорают контакты: блок включается через раз, внутри клавиши щелчки или искры."},
+   FU1:{n:"Плавкий предохранитель",v:"T5A 250 В",why:"Последняя линия защиты. При коротком замыкании внутри блока проволочка перегорает и отключает сеть.",chk:"Режим прозвонки: 0–0,2 Ω и писк. OL — сгорел.",fail:"Сгорает при пробое ключей или моста. Тёмная колба говорит о сильном КЗ: новый ставить только после поиска причины."},
+   RV1:{n:"Варистор",v:"14D471K · 470 В",why:"Защита от скачков в сети. Выше ~470 В он резко начинает проводить, замыкает сеть и выжигает предохранитель, спасая остальную схему.",chk:"Ω на пределе 2 МОм: исправный показывает OL. Любое конечное сопротивление — повреждён.",fail:"Трескается или обгорает после грозы или «перекоса фаз». Пробитый варистор даёт КЗ и снова сжигает предохранитель."},
+   RT1:{n:"Термистор NTC",v:"5D-9 · 5 Ом",why:"Холодный имеет около 5 Ом и ограничивает бросок тока при включении, пока заряжается большой конденсатор. Нагревшись, почти не мешает.",chk:"Ω холодного: 2–10 Ω. Если нагреть паяльником — сопротивление падает.",fail:"Лопается от бросков тока и показывает OL. Блок тогда «мёртвый», хотя предохранитель цел."}
+  },
+  c:[
+   {t:"SW",id:"SA1",a:[85,70],b:[145,70],on:()=>true},
+   {t:"FUSE",id:"FU1",a:[175,70],b:[245,70],on:onAC,bad:S=>S.fuse},
+   {t:"VAR",id:"RV1",a:[290,70],b:[290,190]},
+   {t:"NTC",id:"RT1",a:[340,70],b:[410,70],on:onAC}
+  ],
+  w:[
+   {d:"M40,70 H85",k:"ac",v:vIn,r:rIn},{d:"M145,70 H175",k:"ac",v:vIn,r:rIn},{d:"M245,70 H340",k:"ac",v:vIn,r:rIn},{d:"M410,70 H610",k:"ac",v:vIn,r:rIn},
+   {d:"M610,190 H40",k:"ac",v:vIn,r:rIn},{d:"M40,236 H610",k:"ac",v:()=>0}
+  ],
+  j:[[290,70],[290,190]],
+  tx:[[40,62,"L (фаза)"],[40,182,"N (ноль)"],[40,228,"PE (заземление, на корпус)"],[610,62,"к сетевому фильтру →","end"]],
+  dyn:[[460,140,S=>S.fuse?"предохранитель сгорел":(vIn(S)?"ток идёт: заряд конденсатора":"ток ждёт пика синусоиды"),S=>S.fuse?C.bad:C.ac]]
+ },
+ emi:{
+  parts:{
+   CX1:{n:"Помехоподавляющий конденсатор X",v:"0,47 мкФ · X2 275 В",why:"Стоит между L и N и замыкает высокочастотные помехи, не пропуская их в сеть. Класс X рассчитан на то, чтобы при пробое не загореться.",chk:"Выпаять и проверить в режиме ёмкости: 0,4–0,55 мкФ. В режиме Ω — OL.",fail:"Трескается корпус или конденсатор пробивается. Тогда сразу горит предохранитель."},
+   R1:{n:"Разрядный резистор",v:"1 МОм · 0,5 Вт",why:"Разряжает конденсаторы X после отключения вилки, чтобы не ударило током за штырьки.",chk:"Ω: около 1 МОм (на плате может быть чуть меньше из-за параллельных цепей).",fail:"Редко: обрыв. Блок работает, но вилка «кусается» после отключения."},
+   LF1:{n:"Синфазный дроссель",v:"2 × 10 мГн",why:"Две обмотки на одном кольце. Ток сети идёт по ним в разные стороны, и поле гасится, а синфазные помехи проходят в одну сторону и гасятся сопротивлением дросселя.",chk:"Прозвонка каждой обмотки: доли ома. Между обмотками — OL.",fail:"Обрыв провода у вывода или КЗ между обмотками после перегрева."},
+   CX2:{n:"Конденсатор X (второй)",v:"0,22 мкФ · X2",why:"Вторая ступень фильтра после дросселя, добивает остаток помех.",chk:"Ёмкость 0,2–0,25 мкФ, в Ω — OL.",fail:"Пробой, трещины."},
+   CY:{n:"Конденсаторы Y (CY1, CY2)",v:"2200 пФ · Y1 400 В",why:"Отводят помехи с проводов L и N на корпус (заземление). Класс Y рассчитан так, чтобы при пробое не пропускать опасный ток на корпус.",chk:"Ω: OL. Ёмкость около 2,2 нФ.",fail:"Если розетка без заземления, через них корпус «щиплется» током, это не поломка. Пробой Y-конденсатора опасен — менять сразу."}
+  },
+  c:[
+   {t:"C",id:"CX1",a:[100,70],b:[100,190],lp:"l"},
+   {t:"R",id:"R1",a:[160,70],b:[160,190]},
+   {t:"L",id:"LF1",a:[215,70],b:[305,70],n:9,on:onAC},
+   {t:"L",id:"LF1",a:[215,190],b:[305,190],n:9,sw:0,on:onAC,nolab:1},
+   {t:"C",id:"CX2",a:[370,70],b:[370,190]},
+   {t:"C",id:"CY",a:[450,70],b:[450,130],lab:"CY1"},
+   {t:"C",id:"CY",a:[450,190],b:[450,130],lab:"CY2"}
+  ],
+  w:[
+   {d:"M40,70 H215",k:"ac",v:vIn,r:rIn},{d:"M305,70 H610",k:"ac",v:vIn,r:rIn},
+   {d:"M610,190 H305",k:"ac",v:vIn,r:rIn},{d:"M215,190 H40",k:"ac",v:vIn,r:rIn},
+   {d:"M450,130 H500 V236 H40",k:"ac",v:()=>0}
+  ],
+  x:[{t:"line",x1:218,y1:127,x2:302,y2:127,c:"dp"},{t:"line",x1:218,y1:133,x2:302,y2:133,c:"dp"}],
+  j:[[100,70],[100,190],[160,70],[160,190],[370,70],[370,190],[450,70],[450,190],[450,130]],
+  tx:[[40,62,"L"],[40,182,"N"],[40,228,"PE (корпус)"],[260,150,"общий сердечник","middle"],[610,62,"к диодному мосту →","end"]]
+ },
+ br:{
+  parts:{
+   VD1:{n:"Диод моста",v:"в сборке KBU808 · 8 А 800 В",why:"Проводит, когда на L плюс: ток идёт с L на шину «+».",chk:"Режим ▷|. Красный на «~», чёрный на «+»: 0,4–0,7 В. Наоборот — OL.",fail:"Пробой (0 В в обе стороны) — сгорает предохранитель."},
+   VD2:{n:"Диод моста",v:"в сборке KBU808",why:"Проводит, когда на N плюс: ток идёт с N на шину «+».",chk:"Красный на «~» (N), чёрный на «+»: 0,4–0,7 В, обратно — OL.",fail:"Пробой или обрыв."},
+   VD3:{n:"Диод моста",v:"в сборке KBU808",why:"Возвращает ток с шины «−» на L, когда на N плюс.",chk:"Красный на «−», чёрный на «~» (L): 0,4–0,7 В, обратно — OL.",fail:"Пробой или обрыв. При обрыве одного диода блок работает, но конденсатор сильно пульсирует."},
+   VD4:{n:"Диод моста",v:"в сборке KBU808",why:"Возвращает ток с шины «−» на N, когда на L плюс.",chk:"Красный на «−», чёрный на «~» (N): 0,4–0,7 В, обратно — OL.",fail:"Пробой или обрыв."}
+  },
+  c:[
+   {t:"D",id:"VD1",a:[200,70],b:[270,130],lo:[16,-12],la:"start",on:S=>S.fault==="bridge"&&S.surge&&S.acV<0?C.bad:(S.charging&&S.acV>0?C.hv:null),bad:S=>S.fault==="bridge"},
+   {t:"D",id:"VD2",a:[200,190],b:[270,130],lo:[16,20],la:"start",on:S=>(S.charging&&S.acV<0)||(S.fault==="bridge"&&S.surge&&S.acV<0)?(S.surge?C.bad:C.hv):null},
+   {t:"D",id:"VD3",a:[130,130],b:[200,70],lo:[-16,-12],la:"end",on:S=>S.charging&&S.acV<0&&!S.surge?C.hv:null},
+   {t:"D",id:"VD4",a:[130,130],b:[200,190],lo:[-16,20],la:"end",on:S=>S.charging&&S.acV>0?C.hv:null}
+  ],
+  w:[
+   {d:"M40,70 H200",k:"ac",v:vIn,r:rIn},
+   {d:"M200,190 V250 H40",k:"ac",v:vIn,r:rIn},
+   {d:"M270,130 H610",k:"hv",v:S=>S.charging&&S.on?2:0},
+   {d:"M610,222 H208 A8,8 0 0 0 192,222 H130 V130",k:"hv",v:S=>S.charging&&S.on?2:0}
+  ],
+  j:[[200,70],[200,190],[270,130],[130,130]],
+  tx:[[40,62,"~ L"],[40,242,"~ N"],[610,122,"+ к конденсатору →","end"],[610,214,"− общий провод","end"],[200,134,"KBU808","middle"]],
+  dyn:[[300,40,S=>!S.on?"нет напряжения":(S.charging?(S.acV>0?"плюс на L: ведут VD1 и VD4":"плюс на N: ведут VD2 и VD3"):"диоды закрыты: на C1 выше, чем в сети"),S=>S.charging?C.hv:C.mu]]
+ },
+ cap:{
+  parts:{
+   C1:{n:"Сглаживающий конденсатор",v:"470 мкФ · 400 В · 105 °C",why:"Главный накопитель первичной стороны. Заряжается на пиках сети и питает ключи между ними. Иногда стоят два по 220 мкФ 200 В последовательно.",chk:"Только разряженный! V⎓ — меньше 5 В. Затем выпаять и измерить ёмкость: не меньше 80 % от номинала.",fail:"Высыхает и вздувается. Блок тогда плохо держит нагрузку, при просадках сети выключается."},
+   R2:{n:"Разрядный резистор",v:"150 кОм · 2 Вт",why:"Медленно разряжает C1 после выключения, чтобы на плате не оставалось 300 В. Через него постоянно течёт маленький ток.",chk:"Ω: около 150 кΩ.",fail:"Обрыв: конденсатор держит опасный заряд минутами."},
+   C2:{n:"Керамический конденсатор",v:"0,1 мкФ · 630 В",why:"Стоит рядом с ключами и отдаёт ток на коротких фронтах импульсов, которые большой электролит не успевает отдать.",chk:"Ω: OL. Ёмкость 0,1 мкФ.",fail:"Редко: пробой и КЗ шины 320 В."}
+  },
+  c:[
+   {t:"CP",id:"C1",a:[160,60],b:[160,220],on:S=>S.charging&&S.on?C.hv:(S.cap>.1?C.hv:null)},
+   {t:"R",id:"R2",a:[280,60],b:[280,220],on:S=>S.cap>.1?C.hv:null},
+   {t:"C",id:"C2",a:[400,60],b:[400,220],on:S=>S.run?C.hv:null}
+  ],
+  w:[
+   {d:"M40,60 H160",k:"hv",v:S=>S.charging&&S.on?2:0},{d:"M160,60 H610",k:"hv",v:S=>rMos(S)?5:vRun(S),r:rMos},
+   {d:"M610,220 H160",k:"hv",v:S=>rMos(S)?5:vRun(S),r:rMos},{d:"M160,220 H40",k:"hv",v:S=>S.charging&&S.on?2:0}
+  ],
+  j:[[160,60],[160,220],[280,60],[280,220],[400,60],[400,220]],
+  tx:[[40,52,"+ от моста"],[40,212,"− от моста"],[610,52,"к ключам →","end"],[610,212,"− ключей","end"]],
+  dyn:[[460,145,S=>"U на C1 = "+Math.round(325*S.cap)+" В",S=>C.hv],[460,162,S=>S.charging&&S.on?"сейчас заряжается":(S.run?"сейчас отдаёт ток":"держит заряд"),S=>C.mu]]
+ },
+ sw:{
+  parts:{
+   Q1:{n:"Верхний силовой ключ",v:"MOSFET 2SK3569 · 600 В 10 А",why:"Подключает обмотку трансформатора к +320 В. Открывается сигналом на затворе от ШИМ через трансформатор T2.",chk:"Выпаять или проверить на плате в режиме ▷|: красный на исток, чёрный на сток — 0,4–0,6 В (встроенный диод), наоборот — OL. Между затвором и остальными выводами — OL.",fail:"Пробой сток–исток: 0 Ω в обе стороны, сгорает предохранитель. Часто тянет за собой резистор затвора."},
+   Q2:{n:"Нижний силовой ключ",v:"MOSFET 2SK3569",why:"Подключает обмотку к минусу. Открывается строго в паузах верхнего ключа.",chk:"Как Q1: ▷| исток→сток 0,4–0,6 В, обратно OL.",fail:"Пробой. Проверяйте оба ключа всегда вместе."},
+   R4:{n:"Резистор затвора Q1",v:"22 Ом · 0,25 Вт",why:"Ограничивает ток заряда затвора и гасит звон на фронтах.",chk:"Ω: 22 Ω ±5 %.",fail:"Обрывается или обугливается при пробое ключа. Без него новый ключ сгорит снова."},
+   R5:{n:"Резистор затвор–исток Q1",v:"10 кОм",why:"Держит затвор разряженным, чтобы ключ не открылся сам от наводок, пока нет сигнала.",chk:"Ω: около 10 кΩ.",fail:"Обрыв: ключ может самопроизвольно открываться и греться."},
+   R6:{n:"Резистор затвора Q2",v:"22 Ом",why:"То же, что R4, для нижнего ключа.",chk:"Ω: 22 Ω.",fail:"Обрыв при пробое Q2."},
+   R7:{n:"Резистор затвор–исток Q2",v:"10 кОм",why:"Удерживает Q2 закрытым без сигнала.",chk:"Ω: около 10 кΩ.",fail:"Обрыв."},
+   R8:{n:"Резистор снаббера",v:"22 Ом · 2 Вт",why:"Вместе с C3 гасит выбросы напряжения в момент закрытия ключей, которые возникают из-за индуктивности обмотки.",chk:"Ω: 22 Ω.",fail:"Перегревается и темнеет, бывает обрыв."},
+   C3:{n:"Конденсатор снаббера",v:"1 нФ · 1 кВ",why:"Поглощает энергию выброса на фронте. Резистор R8 рассеивает её в тепло.",chk:"Ω: OL, ёмкость 1 нФ.",fail:"Пробой: КЗ средней точки на минус."},
+   C4:{n:"Конденсатор полумоста (верхний)",v:"1 мкФ · 250 В",why:"C4 и C5 делят 320 В пополам и образуют вторую половину моста. Второй конец обмотки подключён к их средней точке, поэтому на обмотке ±160 В.",chk:"Выпаять: ёмкость около 1 мкФ, в Ω — OL.",fail:"Вздутие или потеря ёмкости: перекос, ключи греются."},
+   C5:{n:"Конденсатор полумоста (нижний)",v:"1 мкФ · 250 В",why:"Нижняя половина ёмкостного делителя.",chk:"Как C4.",fail:"Как C4."},
+   W1:{n:"Первичная обмотка T1",v:"≈ 40 витков",why:"Через неё протекает ток то в одну, то в другую сторону, когда ключи открываются по очереди.",chk:"Прозвонка: доли ома.",fail:"Обрыв редок. Межвитковое КЗ проверяется только специальным тестером."}
+  },
+  c:[
+   {t:"Q",id:"Q1",d:[260,40],s:[260,140],g:[215,90],on:S=>(S.fault==="mosfet")?C.bad:(S.g1?C.pu:null),bad:S=>S.fault==="mosfet"},
+   {t:"Q",id:"Q2",d:[260,140],s:[260,240],g:[215,190],on:S=>S.g2||(rMos(S)&&S.flash)?(rMos(S)?C.bad:C.pu):null},
+   {t:"R",id:"R4",a:[105,90],b:[175,90],on:S=>S.g1?C.pu:null},
+   {t:"R",id:"R5",a:[195,90],b:[195,140],lp:"l"},
+   {t:"R",id:"R6",a:[105,190],b:[175,190],on:S=>S.g2?C.pu:null},
+   {t:"R",id:"R7",a:[195,190],b:[195,240],lp:"l"},
+   {t:"R",id:"R8",a:[325,140],b:[325,190]},
+   {t:"C",id:"C3",a:[325,190],b:[325,240]},
+   {t:"L",id:"W1",a:[370,140],b:[450,140],n:8,on:S=>S.sw?C.pu:null},
+   {t:"CP",id:"C4",a:[530,40],b:[530,140]},
+   {t:"CP",id:"C5",a:[530,140],b:[530,240]}
+  ],
+  w:[
+   {d:"M40,40 H260",k:"hv",v:S=>rMos(S)?5:(S.g1?1.6:0),r:rMos},{d:"M260,40 H610",k:"hv",v:S=>S.g2?1.6:0},
+   {d:"M260,140 H370",k:"pu",v:S=>S.sw*1.6},{d:"M450,140 H530",k:"pu",v:S=>S.sw*1.6},
+   {d:"M610,240 H260",k:"hv",v:S=>S.g1?1.6:0},{d:"M260,240 H40",k:"hv",v:S=>rMos(S)?5:(S.g2?1.6:0),r:rMos},
+   {d:"M40,90 H105",k:"pu",v:S=>S.g1?1.2:0},{d:"M175,90 H215",k:"pu",v:S=>S.g1?1.2:0},
+   {d:"M40,190 H105",k:"pu",v:S=>S.g2?1.2:0},{d:"M175,190 H215",k:"pu",v:S=>S.g2?1.2:0},
+   {d:"M195,140 H260",k:"pu",v:()=>0}
+  ],
+  j:[[260,140],[195,90],[195,190],[195,140],[195,240],[325,140],[325,240],[530,140],[530,40],[530,240],[260,40],[260,240]],
+  tx:[[40,32,"+320 В"],[40,256,"0 В"],[40,82,"G1 от T2"],[40,182,"G2 от T2"]],
+  dyn:[[285,95,S=>S.fault==="mosfet"?"ПРОБИТ":(S.g1?"открыт":"закрыт"),S=>S.fault==="mosfet"?C.bad:(S.g1?C.pu:C.mu)],[285,195,S=>S.g2?"открыт":"закрыт",S=>S.g2?C.pu:C.mu]]
+ },
+ tr:{
+  parts:{
+   W1:{n:"Первичная обмотка T1",v:"≈ 40 витков",why:"Получает импульсы ±160 В от ключей и создаёт переменное магнитное поле в сердечнике.",chk:"Прозвонка: доли ома. Между первичной и вторичной — OL.",fail:"Пробой изоляции между обмотками очень опасен: сеть попадает на выход."},
+   T1:{n:"Ферритовый сердечник T1",v:"EI-33 · 2000НМ",why:"Проводит магнитное поле от первичной обмотки ко вторичной. Феррит работает на 65 кГц почти без потерь.",chk:"Осмотр: трещины, сколы.",fail:"Трещина: трансформатор пищит, КПД падает."},
+   W2:{n:"Вторичная обмотка 12 В",v:"2 × 6 витков, отвод от середины",why:"Наводится переменное напряжение около ±25 В. Средний отвод соединён с землёй выхода, половины работают по очереди.",chk:"Прозвонка каждой половины: доли ома.",fail:"Обрыв у вывода после перегрева."},
+   CY3:{n:"Y-конденсатор развязки",v:"2200 пФ · Y1",why:"Соединяет первичную и вторичную землю по высокой частоте и гасит помехи, проходящие через ёмкость обмоток.",chk:"Ω: OL.",fail:"Пробой опасен: на выходе появится сетевое напряжение. Менять только на класс Y1."}
+  },
+  c:[
+   {t:"L",id:"W1",a:[150,55],b:[150,205],n:14,lp:"l",on:S=>S.sw?C.pu:null},
+   {t:"L",id:"W2",a:[225,130],b:[225,60],n:7,on:S=>S.sw>0?(rSch(S)?C.bad:C.pu):null},
+   {t:"L",id:"W2",a:[225,200],b:[225,130],n:7,on:S=>S.sw<0?C.pu:null,nolab:1},
+   {t:"C",id:"CY3",a:[100,205],b:[100,246],lp:"l"},
+   {t:"CORE",id:"T1",x:[180,188],y:[45,215]}
+  ],
+  w:[
+   {d:"M40,55 H150",k:"pu",v:S=>S.sw*1.6},{d:"M150,205 H40",k:"pu",v:S=>S.sw*1.6},
+   {d:"M225,60 H610",k:"pu",v:S=>S.sw>0?1.6*(rSch(S)?2.5:1):0,r:rSch},{d:"M610,130 H225",k:"pu",v:S=>Math.abs(S.sw)*1.6},
+   {d:"M225,200 H610",k:"pu",v:S=>S.sw<0?1.6:0},{d:"M100,246 H420 V130",k:"pu",v:()=>0}
+  ],
+  j:[[100,205],[225,130],[420,130]],
+  tx:[[40,47,"от ключей (I)"],[610,52,"A → к диоду VD5","end"],[610,122,"0 В выхода","end"],[610,192,"B → к диоду VD6","end"],[440,240,"между сторонами нет контакта","start"]],
+  dyn:[[184,36,S=>S.sw>0?"поле ▲":S.sw<0?"поле ▼":"поле 0",S=>S.sw?C.pu:C.mu,"middle"]]
+ },
+ d:{
+  parts:{
+   VD5:{n:"Диод Шоттки (верхний)",v:"в сборке STPS3045 · 30 А 45 В",why:"Пропускает импульс с верхнего конца обмотки, когда там плюс.",chk:"▷|: красный на анод, чёрный на катод — 0,15–0,4 В. Наоборот — OL (у горячего может показать утечку).",fail:"Пробой: КЗ на выходе, блок уходит в защиту и «икает»."},
+   VD6:{n:"Диод Шоттки (нижний)",v:"в сборке STPS3045",why:"Пропускает импульс с нижнего конца обмотки в другой полупериод.",chk:"Как VD5.",fail:"Пробой или утечка от перегрева."},
+   R11:{n:"Резистор снаббера VD5",v:"10 Ом · 0,5 Вт",why:"С C9 гасит звон напряжения при закрытии диода.",chk:"Ω: 10 Ω.",fail:"Обгорает, если снаббер работает на пределе."},
+   C9:{n:"Конденсатор снаббера VD5",v:"2,2 нФ",why:"Поглощает выброс на фронте.",chk:"Ω: OL.",fail:"Пробой."},
+   R12:{n:"Резистор снаббера VD6",v:"10 Ом",why:"То же для VD6.",chk:"Ω: 10 Ω.",fail:"Обгорает."},
+   C10:{n:"Конденсатор снаббера VD6",v:"2,2 нФ",why:"То же для VD6.",chk:"Ω: OL.",fail:"Пробой."}
+  },
+  c:[
+   {t:"D",id:"VD5",a:[110,60],b:[190,60],lo:[0,22],on:S=>S.fault==="schottky"?C.bad:(S.sw>0?C.lv:null),bad:S=>S.fault==="schottky"},
+   {t:"D",id:"VD6",a:[110,140],b:[190,140],lo:[0,-26],on:S=>S.sw<0?C.lv:null},
+   {t:"R",id:"R11",a:[95,24],b:[150,24]},{t:"C",id:"C9",a:[170,24],b:[220,24]},
+   {t:"R",id:"R12",a:[95,198],b:[150,198]},{t:"C",id:"C10",a:[170,198],b:[220,198]}
+  ],
+  w:[
+   {d:"M40,60 H110",k:"pu",v:S=>S.sw>0?1.6*(rSch(S)?2.5:1):0,r:rSch},{d:"M40,140 H110",k:"pu",v:S=>S.sw<0?1.6:0},
+   {d:"M190,60 H260",k:"lv",v:S=>S.sw>0&&S.fault!=="schottky"?1.6:0},{d:"M190,140 H260 V60",k:"lv",v:S=>S.sw<0&&S.fault!=="schottky"?1.6:0},
+   {d:"M260,60 H610",k:"lv",v:vOut},{d:"M610,248 H40",k:"lv",v:vOut},
+   {d:"M75,60 V24 H95",k:"lv",v:()=>0},{d:"M220,24 H240 V60",k:"lv",v:()=>0},{d:"M75,140 V198 H95",k:"lv",v:()=>0},{d:"M220,198 H240 V140",k:"lv",v:()=>0}
+  ],
+  j:[[75,60],[240,60],[75,140],[240,140],[260,60]],
+  tx:[[40,52,"A"],[40,132,"B"],[40,240,"0 В (средний отвод)"],[610,52,"к дросселю →","end"],[300,110,"VD5 и VD6 — один корпус на радиаторе","start"]],
+  dyn:[[300,128,S=>S.fault==="schottky"?"VD5 пробит: КЗ обмотки":(S.sw>0?"ведёт VD5":S.sw<0?"ведёт VD6":"пауза: оба закрыты"),S=>S.fault==="schottky"?C.bad:(S.sw?C.lv:C.mu),"start"]]
+ },
+ lc:{
+  parts:{
+   L2:{n:"Дроссель групповой стабилизации",v:"кольцо 27 мм · обмотки 12/5/3,3 В",why:"Накапливает энергию в импульсе и отдаёт в паузе. Обмотки всех выходов на одном кольце, поэтому напряжения меняются согласованно.",chk:"Прозвонка обмоток: доли ома.",fail:"Перегрев, потемнение лака, гудение."},
+   C11:{n:"Выходной электролит",v:"2200 мкФ · 16 В · Low ESR",why:"Главный сглаживающий конденсатор 12 В.",chk:"Осмотр на вздутие. Выпаять: ёмкость и ESR (норма до 0,05 Ω).",fail:"Самая частая поломка БП: высыхает и вздувается."},
+   L3:{n:"Дроссель доп. фильтра",v:"≈ 3 мкГн",why:"Вторая ступень LC-фильтра, срезает остаток высокочастотных пульсаций.",chk:"Прозвонка: 0 Ω.",fail:"Почти не ломается."},
+   C12:{n:"Выходной электролит",v:"1000 мкФ · 16 В · Low ESR",why:"Вторая ступень сглаживания прямо у выходных проводов.",chk:"Как C11.",fail:"Вздутие, высыхание."},
+   C13:{n:"Керамический конденсатор",v:"0,1 мкФ",why:"Гасит самые высокие частоты, с которыми электролит не справляется.",chk:"Ω: OL.",fail:"Редко."},
+   R13:{n:"Нагрузочный резистор",v:"100 Ом · 2 Вт",why:"Даёт минимальную нагрузку, чтобы блок работал стабильно без компьютера. Также разряжает конденсаторы.",chk:"Ω: 100 Ω.",fail:"Сильно греется и может обуглиться, темнеет плата под ним."}
+  },
+  c:[
+   {t:"L",id:"L2",a:[90,60],b:[210,60],n:10,on:S=>S.run?C.lv:null},
+   {t:"CP",id:"C11",a:[280,60],b:[280,220],on:S=>S.fault==="cap"?C.bad:(S.v12>1?C.lv:null),bad:S=>S.fault==="cap"},
+   {t:"L",id:"L3",a:[320,60],b:[380,60],n:6,on:S=>S.v12>1?C.lv:null},
+   {t:"CP",id:"C12",a:[420,60],b:[420,220],on:S=>S.v12>1?C.lv:null},
+   {t:"C",id:"C13",a:[490,60],b:[490,220]},
+   {t:"R",id:"R13",a:[560,60],b:[560,220],on:S=>S.v12>1?C.lv:null}
+  ],
+  w:[
+   {d:"M40,60 H90",k:"lv",v:S=>Math.abs(S.sw)*1.3},{d:"M210,60 H320",k:"lv",v:vOut},{d:"M380,60 H615",k:"lv",v:vOut},{d:"M615,220 H40",k:"lv",v:vOut}
+  ],
+  j:[[280,60],[280,220],[420,60],[420,220],[490,60],[490,220],[560,60],[560,220]],
+  tx:[[40,52,"от диодов"],[40,212,"0 В"],[612,52,"+12 В →","end"]],
+  dyn:[[90,140,S=>"U = "+fmt(S.v12,2)+" В",S=>C.lv,"start"],[90,158,S=>S.fault==="cap"?"пульсации ≈ 1,5 В — много":"пульсации ≈ 40 мВ",S=>S.fault==="cap"?C.bad:C.mu,"start"]]
+ },
+ out:{
+  parts:{
+   DA3:{n:"Супервизор питания",v:"PS223 / WT7525",why:"Следит за +12, +5 и +3,3 В. Если напряжения в норме — выдаёт сигнал PWR_OK материнской плате. При завышении или КЗ выключает блок. По сигналу PS_ON с материнки запускает блок.",chk:"При работе: PWR_OK около 5 В (через 0,1–0,5 с после старта). Если PS_ON замкнуть на GND, блок должен запуститься.",fail:"Блок не стартует или сразу выключается, хотя силовая часть цела."},
+   X1:{n:"Разъём ATX 24 pin",v:"жёлтый · красный · оранжевый · чёрный",why:"Выходы блока по цветам: жёлтый +12 В, красный +5 В, оранжевый +3,3 В, чёрный GND, зелёный PS_ON, серый PWR_OK, фиолетовый +5 В дежурное.",chk:"V⎓ между цветом и чёрным: 12, 5, 3,3 В ±5 %. Запуск без ПК: зелёный провод замкнуть на чёрный.",fail:"Подгорание контактов на мощной нагрузке, потемнение пластика."}
+  },
+  c:[
+   {t:"IC",id:"DA3",x:250,y:160,w:120,h:55,title:"DA3",pins:[[270,160,"12","t"],[300,160,"5","t"],[330,160,"3,3","t"],[370,175,"PG","r"],[370,200,"ON","r"],[310,215,"GND","b"]]},
+   {t:"IC",id:"X1",x:520,y:32,w:110,h:212,ty:-7,title:"X1 · ATX 24 pin",pins:[[520,50,"+12 жёлт.","l"],[520,90,"+5 красн.","l"],[520,130,"+3,3 оранж.","l"],[520,175,"PWR_OK сер.","l"],[520,200,"PS_ON зел.","l"],[520,230,"GND чёрн.","l"]]}
+  ],
+  w:[
+   {d:"M40,50 H520",k:"lv",v:vOut},{d:"M40,90 H520",k:"lv",v:S=>vOut(S)*.6},{d:"M40,130 H520",k:"lv",v:S=>vOut(S)*.5},{d:"M520,230 H40",k:"lv",v:vOut},
+   {d:"M270,50 V160",k:"fb",v:()=>0},{d:"M300,90 V160",k:"fb",v:()=>0},{d:"M330,130 V160",k:"fb",v:()=>0},
+   {d:"M370,175 H520",k:"fb",v:S=>S.v12>11?.5:0},{d:"M520,200 H370",k:"fb",v:()=>0},{d:"M310,215 V230",k:"lv",v:()=>0}
+  ],
+  j:[[270,50],[300,90],[330,130],[310,230]],
+  tx:[[40,42,"+12 В"],[40,82,"+5 В"],[40,122,"+3,3 В"],[40,222,"0 В (GND)"]],
+  dyn:[[130,42,S=>fmt(S.v12,2)+" В",S=>C.lv,"start"],[130,82,S=>fmt(S.v12*5/12,2)+" В",S=>C.lv,"start"],[130,122,S=>fmt(S.v12*3.3/12,2)+" В",S=>C.lv,"start"],[380,168,S=>S.v12>11?"PWR_OK = 5 В":"PWR_OK = 0",S=>S.v12>11?C.fb:C.bad,"start"]]
+ },
+ fb:{
+  parts:{
+   R20:{n:"Верхний резистор делителя",v:"38,3 кОм · 1 %",why:"R20 и R21 делят выходное напряжение так, чтобы при ровно 12 В на входе TL431 было 2,5 В. От их точности зависит точность выхода.",chk:"Ω: номинал ±1 %.",fail:"Уход номинала: выход завышен или занижен. Обрыв: напряжение улетает вверх, срабатывает защита."},
+   R21:{n:"Нижний резистор делителя",v:"10 кОм · 1 %",why:"Нижнее плечо делителя: 12 × 10/(38,3+10) ≈ 2,5 В.",chk:"Ω: 10 кΩ ±1 %.",fail:"Уход номинала."},
+   DA2:{n:"Регулируемый стабилитрон TL431",v:"TL431 · эталон 2,500 В",why:"Сравнивает напряжение с делителя с точным эталоном 2,5 В. Если выше — сильнее открывается и пропускает больше тока через светодиод оптопары.",chk:"Мультиметром только косвенно: ▷| анод–катод около 0,6–0,7 В в одну сторону. Точно — в простой схеме проверки с резистором.",fail:"Пробой: выход занижен. Обрыв: выход завышен и срабатывает защита."},
+   C14:{n:"Конденсатор коррекции",v:"0,1 мкФ",why:"Замедляет реакцию петли обратной связи, чтобы выход не «качался» и не возбуждался.",chk:"Ω: OL.",fail:"Высыхание: блок пищит, выход колеблется."},
+   R23:{n:"Резистор светодиода",v:"1 кОм",why:"Ограничивает ток через светодиод оптопары.",chk:"Ω: 1 кΩ.",fail:"Обрыв: ШИМ не получает сигнала, выход завышен — защита."},
+   U1:{n:"Оптопара",v:"PC817",why:"Светодиод на вторичной стороне светит на фототранзистор на первичной. Сигнал проходит без электрического контакта, развязка сохраняется.",chk:"Светодиод: ▷| выв. 1–2 около 1,1 В. Фототранзистор: при подаче тока на светодиод сопротивление коллектор–эмиттер падает.",fail:"Деградация светодиода от старости: выход медленно растёт."}
+  },
+  c:[
+   {t:"R",id:"R20",a:[150,40],b:[150,165]},{t:"R",id:"R21",a:[150,165],b:[150,232]},
+   {t:"DZ",id:"DA2",a:[300,232],b:[300,100],on:S=>S.I>.2?C.fb:null},
+   {t:"C",id:"C14",a:[230,100],b:[230,165],lp:"l"},
+   {t:"R",id:"R23",a:[500,40],b:[500,100],on:S=>S.I>.2?C.fb:null},
+   {t:"LED",id:"U1",a:[420,100],b:[350,100],on:S=>S.I>.2?C.fb:null,lab:"U1",lo:[-32,28],la:"end"},
+   {t:"PT",id:"U1",c:[390,175],on:S=>S.I>.2?C.fb:null}
+  ],
+  w:[
+   {d:"M40,40 H500",k:"lv",v:vLed},{d:"M500,100 H420",k:"fb",v:vLed},{d:"M350,100 H300",k:"fb",v:vLed},{d:"M300,232 H40",k:"lv",v:vLed},
+   {d:"M150,165 H290",k:"fb",v:()=>0},{d:"M300,100 H230",k:"fb",v:()=>0},
+   {d:"M610,150 H398 V158",k:"fb",v:vLed},{d:"M398,192 V202 H610",k:"fb",v:vLed}
+  ],
+  x:[{t:"rect",x:330,y:76,width:132,height:138,rx:6,c:"iso"},
+     {t:"path",d:"M378,110 l5,24 m-5,-6 l5,6 l3,-7 M394,110 l5,24 m-5,-6 l5,6 l3,-7",c:"dp",col:C.fb,op:S=>Math.min(1,S.I/6)}],
+  j:[[150,40],[150,165],[150,232],[300,100],[230,165],[500,40],[300,232]],
+  tx:[[40,32,"+12 В выхода"],[40,248,"0 В выхода"],[610,142,"→ ШИМ, вывод FB","end"],[610,216,"земля первичной","end"],[396,228,"U1 — развязка","middle"]],
+  dyn:[[160,252,S=>"на входе TL431: "+fmt(2.5*S.v12/12,3)+" В",S=>C.fb,"start"],[470,190,S=>"ток LED "+fmt(S.I,1)+" мА",S=>C.fb,"start"]]
+ },
+ pwm:{
+  parts:{
+   DA1:{n:"ШИМ-контроллер TL494",v:"DIP-16",why:"Внутри генератор пилы, усилители ошибки и компаратор. Сравнивает пилу с сигналом обратной связи и формирует импульсы нужной ширины на выходах C1 и C2.",chk:"При работе: на выв. 12 (VCC) 12–25 В, на выв. 14 (REF) ровно 5 В, на выв. 5 (CT) пила. Нет 5 В на REF — микросхема неисправна или нет питания.",fail:"Выгорает вместе с ключами при сильном пробое. Блок не запускается."},
+   R24:{n:"Частотозадающий резистор RT",v:"11 кОм",why:"Вместе с C15 задаёт частоту: f ≈ 1,1 / (R24 · C15) ≈ 66 кГц.",chk:"Ω: 11 кΩ.",fail:"Уход номинала меняет частоту, трансформатор может насыщаться и греться."},
+   C15:{n:"Частотозадающий конденсатор CT",v:"1,5 нФ",why:"Заряжается и разряжается, формируя пилообразное напряжение внутри TL494.",chk:"Ω: OL, ёмкость 1,5 нФ.",fail:"Пробой: генератор стоит, импульсов нет."},
+   C16:{n:"Конденсатор мягкого старта",v:"10 мкФ",why:"При включении заряжается и медленно расширяет импульсы, чтобы не было удара по ключам и конденсаторам.",chk:"Ёмкость, ESR.",fail:"Высох: жёсткий старт, со временем горят ключи."},
+   R25:{n:"Резистор мёртвого времени",v:"4,7 кОм",why:"Задаёт вывод DTC: минимальную паузу между импульсами, чтобы Q1 и Q2 никогда не открылись вместе.",chk:"Ω: 4,7 кΩ.",fail:"Обрыв или уход: пауза пропадает — сквозной ток и пробой ключей."},
+   C17:{n:"Конденсатор питания",v:"47 мкФ · 35 В",why:"Фильтрует питание микросхемы от дежурного источника.",chk:"Ёмкость, ESR, вздутие.",fail:"Высыхание: блок запускается не с первого раза, «щёлкает»."},
+   R27:{n:"Выходной резистор канала 1",v:"1 кОм",why:"Ограничивает ток с выхода C1 в цепь раскачки трансформатора T2.",chk:"Ω: 1 кΩ.",fail:"Обрыв: ключ Q1 не открывается, блок не стартует."},
+   R28:{n:"Выходной резистор канала 2",v:"1 кОм",why:"То же для выхода C2 и ключа Q2.",chk:"Ω: 1 кΩ.",fail:"Обрыв."},
+   T2:{n:"Трансформатор раскачки",v:"EE-19",why:"Передаёт импульсы от ШИМ на затворы силовых ключей через развязку: ключи на первичной стороне под высоким напряжением.",chk:"Прозвонка обмоток: единицы ом. Между обмотками — OL.",fail:"Обрыв тонкого провода у вывода."}
+  },
+  c:[
+   {t:"IC",id:"DA1",x:290,y:50,w:110,h:180,title:"TL494",pins:[[290,60,"1 IN+ (FB)","l"],[290,100,"4 DTC","l"],[290,140,"5 CT","l"],[290,180,"6 RT","l"],[345,230,"7 GND","b"],[400,60,"12 VCC","r"],[400,110,"8 C1","r"],[400,160,"11 C2","r"]]},
+   {t:"CP",id:"C16",a:[50,100],b:[50,248]},
+   {t:"R",id:"R25",a:[105,100],b:[105,248]},
+   {t:"C",id:"C15",a:[165,140],b:[165,248]},
+   {t:"R",id:"R24",a:[225,180],b:[225,248]},
+   {t:"CP",id:"C17",a:[425,60],b:[425,248],lo:[13,40],la:"start"},
+   {t:"R",id:"R27",a:[450,110],b:[505,110],on:S=>S.g1?C.pu:null},
+   {t:"R",id:"R28",a:[450,160],b:[505,160],on:S=>S.g2?C.pu:null},
+   {t:"L",id:"T2",a:[530,110],b:[530,160],n:5,lo:[20,-60],la:"middle",on:S=>S.sw?C.pu:null},
+   {t:"L",id:"T2",a:[570,160],b:[570,110],n:5,on:S=>S.sw?C.pu:null,nolab:1},
+   {t:"CORE",id:"T2",x:[546,553],y:[100,170]}
+  ],
+  w:[
+   {d:"M40,60 H290",k:"fb",v:vLed},{d:"M290,100 H50",k:"fb",v:()=>0},{d:"M290,140 H165",k:"fb",v:()=>0},{d:"M290,180 H225",k:"fb",v:()=>0},
+   {d:"M345,230 V248",k:"fb",v:()=>0},{d:"M40,248 H620",k:"fb",v:()=>0},{d:"M620,60 H400",k:"hv",v:S=>S.run?.4:0},
+   {d:"M400,110 H450",k:"pu",v:S=>S.g1?1.2:0},{d:"M505,110 H530",k:"pu",v:S=>S.g1?1.2:0},
+   {d:"M400,160 H450",k:"pu",v:S=>S.g2?1.2:0},{d:"M505,160 H530",k:"pu",v:S=>S.g2?1.2:0},
+   {d:"M570,110 H620",k:"pu",v:S=>S.g1?1.2:0},{d:"M570,160 H620",k:"pu",v:S=>S.g2?1.2:0}
+  ],
+  j:[[50,100],[105,100],[50,248],[105,248],[165,248],[225,248],[345,248],[425,60],[425,248]],
+  tx:[[40,52,"от оптопары"],[620,52,"питание от дежурки","end"],[620,102,"→ G1","end"],[620,174,"→ G2","end"]],
+  dyn:[[290,40,S=>!S.on?"нет питания":(!S.run?"ЗАЩИТА: импульсов нет":"ширина импульса "+Math.round(S.duty*100)+" %"),S=>!S.run?C.bad:C.pu,"start"]]
+ }
+};
+const HALF={R:14,FUSE:14,NTC:14,VAR:14,C:3,CP:3,D:6,DZ:6,LED:6,SW:13};
+let det=null,xSel=null;
+const dsvg=$("dsvg");
+function drawComp(g,c){
+  const G=el("g",{class:"dc",tabindex:"0",role:"button","aria-label":c.id},g);
+  const parts=[],fills=[],leads=[];let lever=null;
+  if(c.t==="IC"){
+    const r=el("rect",{x:c.x,y:c.y,width:c.w,height:c.h,rx:4,class:"dp dbody hit-ic"},G);parts.push(r);
+    tx(G,c.x+c.w/2,c.ty!=null?c.y+c.ty:c.y+(c.h>100?c.h/2:c.h/2+4),c.title,"did",{"text-anchor":"middle"});
+    c.pins.forEach(([px,py,l,s])=>{const o={l:[6,4,"start"],r:[-6,4,"end"],t:[0,13,"middle"],b:[0,-5,"middle"]}[s];tx(G,px+o[0],py+o[1],l,"dval",{"text-anchor":o[2]})});
+    const hit=el("rect",{x:c.x-3,y:c.y-3,width:c.w+6,height:c.h+6,rx:6,class:"hit"},G);G.insertBefore(hit,G.firstChild);
+  }else if(c.t==="CORE"){
+    const hit=el("rect",{x:c.x[0]-6,y:c.y[0],width:c.x[1]-c.x[0]+12,height:c.y[1]-c.y[0],class:"hit"},G);
+    parts.push(ln(G,c.x[0],c.y[0],c.x[0],c.y[1],"dp"),ln(G,c.x[1],c.y[0],c.x[1],c.y[1],"dp"));
+  }else if(c.t==="Q"){
+    const [dx,dy]=c.d,[sx,sy]=c.s,[gx,gy]=c.g,cx=dx,cy=(dy+sy)/2;
+    el("circle",{cx:cx-3,cy,r:19,class:"hit"},G);
+    el("circle",{cx:cx-3,cy,r:18,class:"dp"},G);
+    parts.push(el("path",{d:`M${dx},${dy} V${cy-8} H${cx-7} M${sx},${sy} V${cy+8} H${cx-7} M${cx-7},${cy-11} V${cy+11}`,class:"dp"},G));
+    parts.push(el("path",{d:`M${gx},${gy} H${cx-12} M${cx-12},${cy-9} V${cy+9}`,class:"dp"},G));
+    const ar=el("path",{d:`M${cx-7},${cy+8} l6,-3 v6 Z`},G);fills.push(ar);
+    tx(G,cx+22,cy-14,c.id,"did");
+  }else if(c.t==="PT"){
+    const [cx,cy]=c.c;el("circle",{cx,cy,r:19,class:"hit"},G);el("circle",{cx,cy,r:17,class:"dp"},G);
+    parts.push(el("path",{d:`M${cx-8},${cy-10} V${cy+10} M${cx-8},${cy-4} L${cx+8},${cy-14} V${cy-17} M${cx-8},${cy+4} L${cx+8},${cy+14} V${cy+17}`,class:"dp"},G));
+    const ar=el("path",{d:`M${cx+8},${cy+14} l-7,-1 l3,-5 Z`},G);fills.push(ar);
+  }else{
+    const [ax,ay]=c.a,[bx,by]=c.b,dx=bx-ax,dy=by-ay,L=Math.hypot(dx,dy),ux=dx/L,uy=dy/L,mx=(ax+bx)/2,my=(ay+by)/2;
+    const h=c.t==="L"?(c.n||4)*5:HALF[c.t];
+    leads.push(ln(G,ax,ay,mx-ux*h,my-uy*h,"dw"),ln(G,mx+ux*h,my+uy*h,bx,by,"dw"));
+    const Bd=el("g",{transform:`translate(${mx},${my}) rotate(${Math.atan2(dy,dx)*180/Math.PI})`},G);
+    el("rect",{x:-h-6,y:-14,width:2*h+12,height:28,rx:5,class:"hit"},Bd);
+    const P=(t,a,cls="dp")=>{const e=el(t,a,Bd);e.setAttribute("class",cls);parts.push(e);return e};
+    switch(c.t){
+      case"R":P("rect",{x:-14,y:-5,width:28,height:10},"dp dbody");break;
+      case"FUSE":P("rect",{x:-14,y:-5,width:28,height:10},"dp dbody");P("line",{x1:-14,y1:0,x2:14,y2:0});break;
+      case"NTC":P("rect",{x:-14,y:-5,width:28,height:10},"dp dbody");P("path",{d:"M-12,9 L10,-9 H15"});break;
+      case"VAR":P("rect",{x:-14,y:-5,width:28,height:10},"dp dbody");P("path",{d:"M-17,9 H-12 L12,-9"});break;
+      case"C":P("line",{x1:-3,y1:-10,x2:-3,y2:10});P("line",{x1:3,y1:-10,x2:3,y2:10});break;
+      case"CP":P("line",{x1:-3,y1:-10,x2:-3,y2:10});P("rect",{x:2,y:-10,width:4,height:20},"dp dbody");break;
+      case"L":{let d=`M${-h},0`;for(let i=0;i<(c.n||4);i++)d+=` a5,5 0 0 ${c.sw===0?0:1} 10,0`;P("path",{d});break}
+      case"D":case"DZ":case"LED":{const t=el("path",{d:"M-6,-7 L-6,7 L6,0 Z"},Bd);fills.push(t);
+        P("path",{d:c.t==="DZ"?"M9,-8 L6,-7 V7 L3,8":"M6,-7 V7"});
+        if(c.t==="LED")P("path",{d:"M-1,-10 l6,-8 m-4,0 h4 v4 M5,-10 l6,-8 m-4,0 h4 v4"});
+        if(c.t==="DZ")P("line",{x1:0,y1:4,x2:0,y2:16});break}
+      case"SW":el("circle",{cx:-13,cy:0,r:2.2,class:"jn"},Bd);el("circle",{cx:13,cy:0,r:2.2,class:"jn"},Bd);lever=P("line",{x1:-13,y1:0,x2:12,y2:-9});break;
+    }
+    if(!c.nolab){
+      const lab=c.lab||c.id,v=det.parts[c.id].v.split(" · ")[0];let ix,iy,anc;
+      if(c.lo){ix=mx+c.lo[0];iy=my+c.lo[1];anc=c.la||"middle"}
+      else if(Math.abs(ux)>Math.abs(uy)){ix=mx;iy=my-14;anc="middle"}
+      else{ix=mx+(c.lp==="l"?-13:13);iy=my-2;anc=c.lp==="l"?"end":"start"}
+      tx(G,ix,iy,lab,"did",{"text-anchor":anc});
+      if(Math.abs(ux)>Math.abs(uy)&&!c.lo)tx(G,ix,my+22,v,"dval",{"text-anchor":anc});else tx(G,ix,iy+12,v,"dval",{"text-anchor":anc});
+      if(c.t==="CP")tx(G,ax+ux*(L/2-h-8)+(Math.abs(ux)>Math.abs(uy)?0:-9),ay+uy*(L/2-h-8)+(Math.abs(ux)>Math.abs(uy)?-6:3),"+","dval");
+    }
+  }
+  G.addEventListener("click",()=>pickPart(c.id));
+  G.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();pickPart(c.id)}});
+  return {G,id:c.id,c,paint(col,bad,on){
+    parts.forEach(p=>{p.style.stroke=col||"";p.style.strokeWidth=col?"2.2":""});fills.forEach(f=>f.style.fill=col||"var(--ink)");
+    leads.forEach(l=>{l.style.stroke=col||"";l.style.strokeOpacity=col?"1":""});G.classList.toggle("blink",!!bad);
+    if(lever){lever.setAttribute("x2",12);lever.setAttribute("y2",on?0:-9)}
+  }};
+}
+function renderDetail(id){
+  det=DET[id];dsvg.innerHTML="";$("xName").textContent=B[id].n;
+  const gx=el("g",{},dsvg),gw=el("g",{},dsvg),gc=el("g",{},dsvg),gt=el("g",{},dsvg);
+  det.ex=(det.x||[]).map(x=>{const a=Object.assign({},x);delete a.t;delete a.c;delete a.col;delete a.op;const e=el(x.t,a,gx);e.setAttribute("class",x.c);if(x.col)e.style.stroke=x.col;return {e,x}});
+  det.ws=det.w.map(w=>{const p=el("path",{d:w.d,class:"dw"},gw);const len=p.getTotalLength(),n=Math.max(2,Math.round(len/12));
+    const dots=[];for(let i=0;i<n;i++)dots.push(el("circle",{r:2.7},gw));return {w,p,len,n,dots,o:0}});
+  det.cs=det.c.map(c=>drawComp(gc,c));
+  (det.j||[]).forEach(([x,y])=>el("circle",{cx:x,cy:y,r:2.8,class:"jn"},gt));
+  (det.tx||[]).forEach(([x,y,s,a])=>tx(gt,x,y,s,"dlab",{"text-anchor":a||"start"}));
+  det.dy=(det.dyn||[]).map(([x,y,f,cf,a])=>({e:tx(gt,x,y,"","dyn",{"text-anchor":a||"start"}),f,cf}));
+  const tb=$("xTab");tb.innerHTML="";
+  Object.entries(det.parts).forEach(([k,p])=>{const tr=document.createElement("tr");tr.className="row";tr.dataset.k=k;tr.tabIndex=0;
+    tr.innerHTML=`<td>${k}</td><td>${p.n}</td><td>${p.v.split(" · ")[0]}</td>`;
+    tr.addEventListener("click",()=>pickPart(k));tr.addEventListener("keydown",e=>{if(e.key==="Enter"){pickPart(k)}});tb.appendChild(tr)});
+  const culprit=fault&&{mosfet:{sw:"Q1",in:"FU1"},bridge:{br:"VD1",in:"FU1"},schottky:{d:"VD5"},cap:{lc:"C11"}}[fault.id][id];
+  pickPart(culprit||Object.keys(det.parts)[0]);
+  updateDetail(0);
+}
+function pickPart(k){
+  xSel=k;const p=det.parts[k];
+  det.cs.forEach(c=>c.G.classList.toggle("sel",c.id===k));
+  $("xTab").querySelectorAll("tr").forEach(r=>r.classList.toggle("sel",r.dataset.k===k));
+  $("xId").textContent=k;$("xN").textContent=p.n;$("xV").textContent=p.v;$("xWhy").textContent=p.why;$("xChk").textContent=p.chk;$("xFail").textContent=p.fail;
+}
+function updateDetail(dt){
+  if(!det)return;const V=55*speed;
+  det.ws.forEach(o=>{const v=o.w.v(S)*V,red=o.w.r&&o.w.r(S)&&Math.abs(v)>0;o.o+=reduce?0:v*dt;const col=red?C.bad:C[o.w.k];
+    o.p.style.stroke=Math.abs(v)>.5?col:"";o.p.style.strokeOpacity=Math.abs(v)>.5?".55":"";
+    o.dots.forEach((d,i)=>{const s=((o.o+i*o.len/o.n)%o.len+o.len)%o.len,pt=o.p.getPointAtLength(s);d.setAttribute("cx",pt.x);d.setAttribute("cy",pt.y);fillc(d,col);op(d,Math.abs(v)>.5?1:0)})});
+  det.cs.forEach(c=>{const col=c.c.on?c.c.on(S):null,bad=c.c.bad?c.c.bad(S):false;c.paint(bad&&!col?C.bad:col,bad,!!col)});
+  det.ex.forEach(({e,x})=>{if(x.op)op(e,x.op(S))});
+  det.dy.forEach(d=>{d.e.textContent=d.f(S);fillc(d.e,d.cf(S))});
+}
+
+/* ---------- loop ---------- */
+let factT=0;
+function frame(now){
+  const dt=Math.min(.1,(now-last)/1000);last=now;
+  compute(now,dt);
+  ORDER.forEach(k=>B[k].up(S));
+  WIRES.forEach(w=>{
+    const {v,red}=wireV(w);w.o+=(reduce?0:v*dt);
+    const vis=Math.abs(v)>.5,col=red?C.bad:KC[w.k];
+    w.dots.forEach((d,i)=>{let s=((w.o+i*w.len/w.n)%w.len+w.len)%w.len;const pt=w.p.getPointAtLength(s);
+      d.setAttribute("cx",pt.x);d.setAttribute("cy",pt.y);fillc(d,col);op(d,vis?1:0)});
+    w.p.style.stroke=red?C.bad:"";
+  });
+  updateDetail(dt);
+  hist.push({t:now,v:S.v12,i:S.I});while(hist.length&&now-hist[0].t>4000)hist.shift();
+  if(now-factT>250){factT=now;renderFacts()}
+  draw(now);requestAnimationFrame(frame);
+}
+compute(performance.now(),0);select("in");requestAnimationFrame(frame);
+</script>
+
+</body>
+</html>

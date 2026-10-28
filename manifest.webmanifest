@@ -1,7 +1,8 @@
 {
-  "name": "Master Components",
-  "short_name": "Компоненты",
-  "description": "Справочник радиокомпонентов и тренажёр проверки мультиметром",
+  "id": "./",
+  "name": "Master Toolkit",
+  "short_name": "Master Toolkit",
+  "description": "Справочник радиокомпонентов, диагностика техники и симулятор ремонта электроники в одном приложении",
   "lang": "ru",
   "start_url": "./",
   "scope": "./",
@@ -9,8 +10,9 @@
   "background_color": "#101216",
   "theme_color": "#101216",
   "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "hub-icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "hub-icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "hub-icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "hub-icon.svg", "sizes": "any", "type": "image/svg+xml" }
   ]
 }

@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LED-подсветка ТВ</title>
+<meta name="theme-color" content="#18222d">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Onest:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body data-board="led">
+<div class="wrap">
+  <header class="hdr">
+    <div class="hrow">
+      <button id="devB" type="button" class="devb" aria-haspopup="dialog" aria-expanded="false"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="2" width="7" height="7" rx="2"/><rect x="11" y="2" width="7" height="7" rx="2"/><rect x="2" y="11" width="7" height="7" rx="2"/><rect x="11" y="11" width="7" height="7" rx="2"/></svg>Устройства</button>
+      <span class="crumb">LED-подсветка ТВ</span>
+      <span class="grow"></span>
+      <button id="cheatB" type="button" class="lite">Шпаргалка</button>
+      <button id="statB" type="button" class="lite">Прогресс</button>
+    </div>
+    <nav class="boards" id="devNav" aria-label="Устройства" hidden><a href="index.html" data-id="samsung" data-group="Блоки питания" data-icon="tv" data-desc="ТВ-блок с PFC, дежуркой и LLC" data-n="21">Samsung BN44 (ТВ)</a><a href="adapter.html" data-id="adapter" data-group="Блоки питания" data-icon="plug" data-desc="Флайбэк на UC3842, 12 В 2 А" data-n="13">Адаптер 12 В</a><a href="led.html" data-id="led" data-group="Телевизор и звук" data-icon="bulb" data-desc="Драйвер подсветки, линейки светодиодов" data-n="11" aria-current="page">LED-подсветка ТВ</a><a href="amp.html" data-id="amp" data-group="Телевизор и звук" data-icon="spk" data-desc="TDA7294, ±35 В, динамик" data-n="11">Усилитель звука</a><a href="atx.html" data-id="atx" data-group="Блоки питания" data-icon="pc" data-desc="Компьютерный БП на TL494" data-n="17">Блок питания ATX</a><a href="micro.html" data-id="micro" data-group="Бытовая техника" data-icon="mw" data-desc="MOT, удвоитель 4 кВ, магнетрон" data-n="16">Микроволновка</a><a href="weld.html" data-id="weld" data-group="Инструмент и мобильные" data-icon="weld" data-desc="Косой мост на IGBT, UC3845" data-n="15">Сварочный инвертор</a><a href="phone.html" data-id="phone" data-group="Инструмент и мобильные" data-icon="phone" data-desc="USB-C, контроллер заряда, АКБ" data-n="11">Зарядка телефона</a><a href="washer.html" data-id="washer" data-group="Бытовая техника" data-icon="wash" data-desc="LNK304, МК, реле ТЭНа, симисторы" data-n="17">Стиральная машина</a><a href="induct.html" data-id="induct" data-group="Бытовая техника" data-icon="ind" data-desc="Резонансный контур на IGBT, коды E0–E5" data-n="14">Индукционная плита</a><a href="fridge.html" data-id="fridge" data-group="Бытовая техника" data-icon="fridge" data-desc="Компрессор, пусковое реле, оттайка No Frost" data-n="14">Холодильник</a><a href="laptop.html" data-id="laptop" data-group="Инструмент и мобильные" data-icon="laptop" data-desc="Вход 19 В, зарядка, дежурки, EC, VCORE" data-n="15">Питание ноутбука</a><a href="ac.html" data-id="ac" data-group="Бытовая техника" data-icon="ac" data-desc="PFC, шина 380 В, IPM, связь, коды ошибок" data-n="14">Плата кондиционера</a><a href="extra/psu-basics.html" data-id="" data-group="Теория" data-icon="book" data-desc="Как устроен импульсный блок питания" data-n="0">Основы: блок-схема</a></nav>
+    <h1>Драйвер LED-подсветки телевизора: полная схема</h1>
+    <details class="about"><summary>О схеме</summary><p class="lead">Повышающий преобразователь 24 → 110 В и два канала тока по 350 мА для линеек светодиодов. Самая частая поломка телевизоров: звук есть, а изображения нет. Точки на проводах — это ток. Выведите любую деталь из строя и посмотрите, как гаснет подсветка.</p></details>
+  </header>
+
+  <div class="bar" role="toolbar" aria-label="Управление">
+    <div class="seg" role="group" aria-label="Режим"><button type="button" id="sgLearn" aria-pressed="true">Обучение</button><button type="button" id="sgRepair" aria-pressed="false">Ремонт</button></div>
+    <div class="seg" role="group" aria-label="Вид"><button type="button" id="sgSch" aria-pressed="true">Схема</button><button type="button" id="sgPcb" aria-pressed="false">Плата</button></div>
+    <span class="sep"></span>
+    <button id="bMains" type="button" class="on">Питание 24 В: есть</button>
+    <button id="bTv" type="button">Пульт: включить ТВ</button>
+    <div class="find"><input id="findQ" type="search" autocomplete="off" placeholder="Найти деталь: C1, IGBT…" aria-label="Найти деталь на схеме"><ul id="findL" class="findl" hidden></ul></div>
+    <button id="pauseB" type="button" class="pauseb" aria-pressed="false" title="Пауза (пробел)" aria-label="Пауза"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="2" width="3.5" height="12" rx="1"/><rect x="9.5" y="2" width="3.5" height="12" rx="1"/></svg></button>
+    <div class="zoom"><button id="zOut" type="button" aria-label="Уменьшить">−</button><button id="zFit" type="button" title="По ширине">⤢</button><button id="zIn" type="button" aria-label="Увеличить">+</button></div>
+    <div class="more"><button id="moreB" type="button" aria-haspopup="true" aria-expanded="false">Ещё</button>
+      <div class="pop" id="morePop" hidden>
+        <button id="bLamp" type="button">Лампа 100 Вт: нет</button>
+        <button id="bFixAll" type="button">Починить всё</button>
+        <button id="bSnd" type="button">Звук: вкл</button>
+        <label class="rng" for="spd">Скорость <input id="spd" type="range" min="10" max="200" value="100"></label>
+        <label class="chk"><input type="checkbox" id="optHl" checked> Подсвечивать цепи выбранной детали</label>
+        <label class="chk"><input type="checkbox" id="optNorm" checked> Показывать норму у приборов</label>
+        <label class="chk"><input type="checkbox" id="optFlow" checked> Ток на виде «Плата»</label>
+      </div>
+    </div>
+    <button id="bMode" type="button" hidden>Режим: обучение</button>
+    <button id="bView" type="button" hidden>Вид: схема</button>
+    <select id="pick" aria-label="Выбрать деталь" hidden></select>
+  </div>
+
+  <section class="card repair" id="repair" hidden aria-labelledby="rpT">
+    <div class="rp-head">
+      <h3 id="rpT">Ремонт</h3>
+      <select id="scSel" aria-label="Выбор задачи"></select>
+      <button id="scStart" type="button">Начать заново</button>
+    </div>
+    <p class="complaint"><span class="kick">Жалоба владельца</span><span id="scText"></span></p>
+    <p class="hint rp-how">Ищите, докуда доходит ток и какие напряжения есть. Подозрительную деталь перетащите в корзину и проверьте, новую — из каталога на пустое место. Затем включите устройство.</p>
+    <div class="rp-act"><button id="hintB" type="button">Подсказка</button><button id="ansB" type="button">Показать ответ</button></div>
+    <ol class="hints" id="hints"></ol>
+    <div class="win" id="win" hidden></div>
+    <details class="hist" id="hist"><summary id="histSum">Мои ремонты</summary><div class="histw"><table id="histT"></table></div><button type="button" id="histClr">Очистить историю</button></details>
+  </section>
+
+  <div class="work">
+    <div class="board" id="board"><svg id="sch" viewBox="0 -4 1796 1108" role="img" aria-label="Принципиальная схема"></svg></div>
+    <aside class="side" aria-label="Приборы, ЛБП, замена деталей, блокнот">
+      <div class="stabs" role="tablist" aria-label="Панель">
+        <button type="button" role="tab" data-tab="tTools" aria-selected="true">Приборы</button><button type="button" role="tab" data-tab="tLab" aria-selected="false">ЛБП</button><button type="button" role="tab" data-tab="tParts" aria-selected="false">Замена</button><button type="button" role="tab" data-tab="tNote" aria-selected="false">Блокнот</button>
+      </div>
+      <div class="tpanel" id="tTools" role="tabpanel">
+      <div class="tools" id="tools">
+        <div class="th"><span>Выберите прибор и нажмите на деталь</span></div>
+        <div class="tbtns">
+          <button type="button" data-t="hand" aria-pressed="true">Рука</button><button type="button" data-t="dmm" aria-pressed="false">Мультиметр</button>
+          <button type="button" data-t="esr" aria-pressed="false">ESR-метр</button><button type="button" data-t="osc" aria-pressed="false">Осциллограф</button>
+          <button type="button" data-t="tst" aria-pressed="false">Тестер деталей</button>
+        </div>
+        <div class="dmodes" id="dmodes" hidden>
+          <button type="button" data-m="vdc" aria-pressed="true">V⎓</button><button type="button" data-m="vac" aria-pressed="false">V~</button><button type="button" data-m="ohm" aria-pressed="false">Ω</button>
+          <button type="button" data-m="beep" aria-pressed="false">•)))</button><button type="button" data-m="diode" aria-pressed="false">▷|</button><button type="button" data-m="cap" aria-pressed="false">⊣⊢</button>
+        </div>
+        <div class="meter" id="meter" hidden>
+          <div class="mhead"><b id="mTool"></b><span id="mTgt"></span></div>
+          <div class="lcd2" id="mLcd"><span id="mV">- - -</span><small id="mU"></small></div>
+          <div class="norm" id="mNorm" hidden></div>
+          <div class="osc" id="mOsc" hidden><canvas id="oscC"></canvas></div>
+          <p class="mn" id="mN"></p>
+          <ul class="mrows" id="mRows"></ul>
+          <button type="button" id="discharge">Разрядить C1 резистором</button>
+        </div>
+      </div>
+      </div>
+      <div class="tpanel" id="tLab" role="tabpanel" hidden>
+      <div class="labpsu" id="labBox">
+        <div class="th"><span>Подать напряжение на шину при выдернутой вилке и найти КЗ по нагреву</span></div>
+        <select id="labRail" aria-label="Шина"></select>
+        <div class="lrow"><label for="labV">U, В <input id="labV" type="number" min="0" max="30" step="0.5" value="15"></label>
+          <label for="labI">I огр., А <select id="labI"><option value="0.1">0,1</option><option value="0.5" selected>0,5</option><option value="1">1</option><option value="2">2</option></select></label></div>
+        <div class="lcdl"><span id="labVo">0,00 В</span><span id="labIo">0,000 А</span><b id="labCC">—</b></div>
+        <button type="button" id="labOn">Включить ЛБП</button>
+      </div>
+      </div>
+      <div class="tpanel" id="tParts" role="tabpanel" hidden>
+      <div class="trash" id="trash"><div class="th"><b>Корзина</b><span>перетащите сюда деталь со схемы</span></div><ul id="trashL"></ul></div>
+      <div class="cat">
+        <div class="th"><b>Каталог деталей</b><span>перетащите на пустое место</span></div>
+        <input id="catQ" type="search" placeholder="Поиск: 10 кОм, PC817, 47 мкФ…" aria-label="Поиск в каталоге">
+        <select id="catF" aria-label="Тип детали"></select>
+        <ul id="catL"></ul>
+      </div>
+      </div>
+      <div class="tpanel" id="tNote" role="tabpanel" hidden>
+        <div class="th"><span>Каждое измерение записывается сюда само</span></div>
+        <div class="notew"><table class="note" id="noteT"></table></div>
+        <button type="button" id="noteClr">Очистить блокнот</button>
+      </div>
+    </aside>
+  </div>
+
+  <div class="lower">
+    <section class="card" id="partCard" aria-live="polite">
+      <div class="kick" id="cId">Деталь</div>
+      <h2 id="cName">Нажмите на деталь на схеме</h2>
+      <p class="val" id="cVal"></p>
+      <div id="cBody"><p class="hint">Любую деталь можно вывести из строя: обрыв, пробой или высыхание. Схема покажет, где остановится ток, а здесь появятся объяснение, признаки и причина поломки.</p></div>
+    </section>
+    <section class="card" id="devCard">
+      <h3>Что видно на экране</h3>
+      <div class="tv">
+        <div class="screen" id="screen"><span>выключен</span></div>
+        <div><div class="led"><i id="led"></i><span id="ledT">индикатор ТВ</span></div>
+          <div class="lampbox" id="lampBox" hidden><i id="bulb"></i><span>Лампа 100 Вт: <b id="lampT"></b></span></div>
+          <p class="see" id="see"></p></div>
+      </div>
+      <table class="rd" id="rd"></table>
+    </section>
+    <section class="card log" id="logCard">
+      <h3>Журнал событий</h3>
+      <ol id="log"></ol>
+    </section>
+  </div>
+  <p class="hint foot">Схема собрана по типовой архитектуре драйверов подсветки (boost + линейные ключи тока, контроллеры OZ9957/MP3394). Номиналы типичные, на конкретной плате они отличаются.</p>
+</div>
+<nav class="mtabs" id="mtabs" aria-label="Разделы">
+  <button type="button" data-m="board" aria-pressed="true"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h5v4h4V5h5M3 15h14M10 9v6"/></svg>Схема</button>
+  <button type="button" data-m="part" aria-pressed="false"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="5" y="7" width="10" height="6" rx="1"/><path d="M2 10h3M15 10h3"/></svg>Деталь</button>
+  <button type="button" data-m="tools" aria-pressed="false"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="5" y="2" width="10" height="16" rx="2"/><path d="M8 6h4M10 10v4"/></svg>Приборы</button>
+  <button type="button" data-m="dev" aria-pressed="false"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="4" width="16" height="10" rx="2"/><path d="M7 17h6"/></svg>Устройство</button>
+  <button type="button" data-m="task" aria-pressed="false" id="mtTask" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 3h10v14H5zM8 7h4M8 10h4M8 13h2"/></svg>Задача</button>
+</nav>
+<div class="modal" id="modal" hidden role="dialog" aria-modal="true" aria-labelledby="modT"><div class="modbox"><div class="modh"><h2 id="modT"></h2><button type="button" id="modX" aria-label="Закрыть">✕</button></div><div id="modB" class="modb"></div></div></div>
+<script src="js/core/01-helpers.js"></script>
+<script src="boards/led/parts.js"></script>
+<script src="boards/led/schematic.js"></script>
+<script src="js/core/04-render.js"></script>
+<script src="boards/led/sim.js"></script>
+<script src="js/core/06-loop.js"></script>
+<script src="js/core/07-kit.js"></script>
+<script src="boards/led/scenarios.js"></script>
+<script src="js/core/08-workshop.js"></script>
+<script src="boards/led/probe.js"></script>
+<script src="js/core/09-instruments.js"></script>
+<script src="boards/led/device.js"></script>
+<script src="js/core/10-ui.js"></script>
+<script src="js/core/11-extras.js"></script>
+<script src="js/core/12-pcb.js"></script>
+<script src="js/core/13-exam.js"></script>
+<script src="js/core/14-ux.js"></script>
+<script src="js/core/15-assist.js"></script>
+<script src="js/core/16-pcbflow.js"></script>
+<script src="js/core/17-more.js"></script>
+<script src="js/core/18-nav.js"></script>
+</body>
+</html>

@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b1220">
+<meta name="color-scheme" content="dark">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Diagnose Pro">
+<meta name="robots" content="noindex,nofollow">
+<title>Master Diagnose Pro</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<div class="app" id="top">
+<header>
+ <div class="brand"><span class="logo" aria-hidden="true">✚</span><div><small>СПРАВОЧНИК МАСТЕРА</small><h1>Master <b>Diagnose</b> Pro</h1></div></div>
+ <span id="network" class="pill">● Проверка сети</span>
+</header>
+<div id="banner" class="banner" role="status" hidden><p id="bannerText"></p><div class="actions start"><button type="button" id="bannerAction" class="primary"></button><button type="button" id="bannerClose">Позже</button></div></div>
+<main>
+<section class="hero">
+ <p>ДИАГНОСТИКА И РЕМОНТ</p>
+ <h2>Что будем проверять?</h2>
+ <form class="search" id="searchForm" role="search"><input id="query" type="search" enterkeyhint="search" autocomplete="off" placeholder="Например, не сливает воду" aria-label="Поиск"><button id="searchBtn" type="submit">Найти</button></form>
+ <div class="modes"><button type="button" data-mode="symptom" class="selected">По симптомам</button><button type="button" data-mode="code">По коду ошибки</button></div>
+</section>
+
+<section id="catSection">
+ <div class="sectionTitle"><h2>Категории техники</h2><button id="addCategory" type="button">+ Добавить</button></div>
+ <div id="categories" class="grid"></div>
+</section>
+
+<section id="base">
+ <div class="sectionTitle"><h2 id="resultsTitle">Неисправности</h2><button id="addFault" type="button">+ Запись</button></div>
+ <div class="chips" role="tablist"><button type="button" data-view="all" class="selected">Все</button><button type="button" data-view="fav">★ Избранное</button><button type="button" data-view="recent">Недавние</button><button type="button" data-view="ref">Справочник</button><button type="button" data-view="mine">Мои</button></div>
+ <div class="search filters"><input id="brandFilter" list="brandList" placeholder="Марка" aria-label="Фильтр по марке" autocomplete="off"><input id="modelFilter" list="modelList" placeholder="Модель" aria-label="Фильтр по модели" autocomplete="off"></div>
+ <div id="brandChips" class="chips brands"></div>
+ <p id="resultsCount" class="note"></p>
+ <div id="results" class="results"></div>
+</section>
+
+<details class="section" id="measures">
+ <summary class="sectionHead"><span>Замеры мультиметром</span><em id="measureCount"></em></summary>
+ <p class="note">Куда ставить щупы, какой режим, что покажет исправная деталь и как выглядит неисправная.</p>
+ <p class="note">Выберите технику:</p>
+ <div id="measureChips" class="chips wrap"></div>
+ <div id="measureList" class="measureList"></div>
+</details>
+
+<details class="section" id="tools">
+ <summary class="sectionHead"><span>Инструменты мастера</span><em>расчёты и маркировка</em></summary>
+ <details class="tool"><summary>Закон Ома и мощность</summary>
+  <p class="note">Заполните любые два поля — остальные рассчитаются. Можно писать 4,7k, 220м, 10мк.</p>
+  <form id="ohmForm" class="toolForm">
+   <label>Напряжение U, В<input name="U" inputmode="decimal" autocomplete="off"></label>
+   <label>Ток I, А<input name="I" inputmode="decimal" autocomplete="off"></label>
+   <label>Сопротивление R, Ом<input name="R" inputmode="decimal" autocomplete="off"></label>
+   <label>Мощность P, Вт<input name="P" inputmode="decimal" autocomplete="off"></label>
+   <div class="actions"><button type="reset">Очистить</button><button type="submit" class="primary">Рассчитать</button></div>
+  </form>
+  <output id="ohmResult" class="toolResult"></output>
+ </details>
+ <details class="tool"><summary>Делитель напряжения</summary>
+  <p class="note">Uвых снимается с R2 (нижнего резистора). Заполните Uвх, R1, R2 — получите Uвых; или Uвх, R1, Uвых — подберётся R2. Нагрузка на выходе не учитывается.</p>
+  <form id="dividerForm" class="toolForm">
+   <label>Uвх, В<input name="Uin" inputmode="decimal" autocomplete="off"></label>
+   <label>R1 (верхний), Ом<input name="R1" inputmode="decimal" autocomplete="off"></label>
+   <label>R2 (нижний), Ом<input name="R2" inputmode="decimal" autocomplete="off"></label>
+   <label>Uвых, В<input name="Uout" inputmode="decimal" autocomplete="off"></label>
+   <div class="actions"><button type="reset">Очистить</button><button type="submit" class="primary">Рассчитать</button></div>
+  </form>
+  <output id="dividerResult" class="toolResult"></output>
+ </details>
+ <details class="tool"><summary>Маркировка резисторов</summary>
+  <div class="toolForm">
+   <label>Количество полос<select id="bandCount"><option value="4">4 полосы</option><option value="5">5 полос</option><option value="6">6 полос</option></select></label>
+   <div id="resistorPreview" class="resistor" aria-hidden="true"></div>
+   <div id="bandSelects" class="bands"></div>
+  </div>
+  <output id="colorResult" class="toolResult"></output>
+  <form id="encodeForm" class="toolForm inline"><label>Номинал → цвета<input id="encodeValue" inputmode="decimal" placeholder="Например, 4,7k" autocomplete="off"></label><button type="submit">Показать</button></form>
+  <output id="encodeResult" class="toolResult"></output>
+  <form id="smdForm" class="toolForm inline"><label>SMD-код<input id="smdCode" autocapitalize="characters" placeholder="103, 4702, 4R7, 01C" autocomplete="off"></label><button type="submit">Расшифровать</button></form>
+  <output id="smdResult" class="toolResult"></output>
+ </details>
+ <details class="tool"><summary>Маркировка конденсаторов</summary>
+  <p class="note">Код в пикофарадах: 104 = 10·10⁴ пФ = 100 нФ. Понимает буквы допуска (J, K, M…), код напряжения впереди (2A104J) и запись вида 4n7, n47, 2u2.</p>
+  <form id="capForm" class="toolForm inline"><label>Маркировка<input id="capCode" autocapitalize="characters" placeholder="104, 2A473J, 4n7" autocomplete="off"></label><button type="submit">Расшифровать</button></form>
+  <output id="capResult" class="toolResult"></output>
+ </details>
+ <details class="tool"><summary>Соединение и подбор замены</summary>
+  <form id="combineForm" class="toolForm">
+   <label>Что соединяем<select name="kind"><option value="R">Резисторы</option><option value="C">Конденсаторы</option></select></label>
+   <label>Как<select name="how"><option value="series">Последовательно</option><option value="parallel">Параллельно</option></select></label>
+   <label class="wide">Номиналы через пробел или «;»<input name="values" autocomplete="off" placeholder="Например: 10k 4,7k 2,2k"></label>
+   <p class="note wide">Для конденсаторов число без букв — микрофарады (100 = 100 мкФ), код из трёх цифр — пикофарады (104 = 100 нФ). Можно писать 100n, 4,7мк, 22p.</p>
+   <div class="actions"><button type="submit" class="primary">Посчитать</button></div>
+  </form>
+  <output id="combineResult" class="toolResult"></output>
+  <p class="note">Нет нужного резистора? Введите номинал — подберу один или пару из ряда E24.</p>
+  <form id="pairForm" class="toolForm inline"><label>Нужно, Ом<input id="pairTarget" inputmode="decimal" placeholder="Например, 4,99k" autocomplete="off"></label><button type="submit">Подобрать</button></form>
+  <output id="pairResult" class="toolResult"></output>
+ </details>
+ <details class="tool"><summary>Резистор для светодиода</summary>
+  <p class="note">Падение на светодиоде берите из даташита. Ориентир: красный ≈ 2 В, белый и синий ≈ 3 В. Ток обычного индикаторного — до 20 мА, часто хватает 5–10 мА.</p>
+  <form id="ledForm" class="toolForm">
+   <label>Питание, В<input name="Us" inputmode="decimal" autocomplete="off"></label>
+   <label>На светодиоде, В<input name="Uled" inputmode="decimal" autocomplete="off"></label>
+   <label>Ток, мА<input name="I" inputmode="decimal" autocomplete="off" value="10"></label>
+   <label>Светодиодов последовательно<input name="count" inputmode="numeric" autocomplete="off" value="1"></label>
+   <div class="actions"><button type="submit" class="primary">Рассчитать</button></div>
+  </form>
+  <output id="ledResult" class="toolResult"></output>
+ </details>
+ <details class="tool"><summary>Типовые значения при прозвонке</summary>
+  <p class="note">Ориентировочные диапазоны для исправных компонентов в режиме проверки диодов, на обесточенной плате с разряженными конденсаторами. Конкретный прибор, температура и параллельные цепи на плате дают отклонения — при сомнении выпаивайте деталь. Это не номиналы конкретных моделей.</p>
+  <div class="tableWrap"><table class="ref">
+   <thead><tr><th>Что проверяем</th><th>Исправно</th><th>Неисправно</th></tr></thead>
+   <tbody>
+    <tr><td>Кремниевый диод (1N4007 и т. п.), прямое</td><td>0,5–0,7 В; обратно OL</td><td>≈0 в обе стороны — пробой; OL в обе — обрыв</td></tr>
+    <tr><td>Диод Шоттки, прямое</td><td>0,15–0,45 В; обратно OL или большое</td><td>≈0 — пробой</td></tr>
+    <tr><td>Германиевый диод, прямое</td><td>0,2–0,35 В</td><td>≈0 или OL в обе стороны</td></tr>
+    <tr><td>Диодный мост, каждое плечо</td><td>0,4–0,7 В в прямом, OL в обратном</td><td>≈0 на любом плече — пробой</td></tr>
+    <tr><td>Светодиод красный / жёлтый</td><td>1,6–2,1 В, может слабо светиться</td><td>OL в обе стороны</td></tr>
+    <tr><td>Светодиод синий / белый</td><td>2,6–3,3 В; многие мультиметры покажут OL — это не неисправность</td><td>≈0 — пробой</td></tr>
+    <tr><td>Стабилитрон, прямое</td><td>0,6–0,75 В; обратно OL (Uст выше ~3 В тестером не проверить)</td><td>≈0 — пробой</td></tr>
+    <tr><td>Биполярный NPN: база (красный) → эмиттер, → коллектор</td><td>0,5–0,75 В каждый, Б–Э обычно чуть больше; К–Э OL в обе стороны</td><td>≈0 между любыми выводами — пробой</td></tr>
+    <tr><td>Биполярный PNP</td><td>То же, но чёрный щуп на базе</td><td>≈0 — пробой</td></tr>
+    <tr><td>MOSFET N-канал: исток (красный) → сток</td><td>0,4–0,7 В (встроенный диод); сток → исток OL; затвор OL к обоим</td><td>≈0 сток–исток в обе стороны — пробой</td></tr>
+    <tr><td>Предохранитель, перемычка, дорожка</td><td>≈0–1 Ом, зуммер звенит</td><td>OL — обрыв</td></tr>
+    <tr><td>Зуммер прозвонки</td><td>Порог зависит от прибора, обычно от 10 до 100 Ом</td><td>—</td></tr>
+   </tbody>
+  </table></div>
+  <p class="note">Перед проверкой MOSFET замкните затвор с истоком — заряд на затворе может приоткрыть канал и исказить результат.</p>
+ </details>
+</details>
+
+<details class="section" id="workGroup">
+ <summary class="sectionHead"><span>Диагностика и данные</span><em>сценарии · алгоритмы · журнал · копия</em></summary>
+<details class="sub" id="checklistsBox">
+ <summary>Пошаговая диагностика</summary>
+ <p class="note">Собственные сценарии проверок. Не вводите неподтверждённые номиналы. Перед измерением сопротивления отключайте питание.</p>
+ <form id="checklistForm">
+  <label>Название сценария<input name="name" required placeholder="Проверка цепи нагрева"></label>
+  <label>Модель техники<input name="model" placeholder="Марка и модель"></label>
+  <label>Шаги — каждый с новой строки<textarea name="steps" required rows="4" placeholder="Отключить питание&#10;Проверить по сервисной документации"></textarea></label>
+  <div class="actions"><button type="button" id="cancelChecklistEdit" hidden>Отмена</button><button type="submit" class="primary" id="checklistSubmit">Сохранить сценарий</button></div>
+ </form>
+ <div id="checklistItems" class="results"></div>
+</details>
+
+<details class="sub" id="guidesBox">
+ <summary>Расширенная диагностика</summary>
+ <div class="actions start"><button id="newGuide" type="button">+ Свой алгоритм</button></div>
+ <p class="note">Пошаговые проверки «исправно / неисправно» с замерами. Готовые — для типовых поломок, свои — создавайте или копируйте готовые и правьте.</p>
+ <details class="tool" id="builtinBox"><summary>Готовые алгоритмы (<span id="builtinCount">0</span>)</summary><div id="builtinGuides" class="measureList"></div></details>
+ <div id="guideList" class="results"></div>
+</details>
+
+<details class="sub" id="journal">
+ <summary>Журнал диагностик</summary>
+ <div class="actions start"><button id="addJournal" type="button">+ Запись</button></div>
+ <p class="note">Что проверяли, на каком аппарате и чем закончилось. Записи создаются кнопкой «Завершить» в алгоритме или сценарии, «В журнал» на карточке неисправности или вручную.</p>
+ <div class="search filters"><input id="journalFilter" type="search" placeholder="Поиск по журналу" aria-label="Поиск по журналу" autocomplete="off"></div>
+ <div id="journalList" class="results"></div>
+</details>
+
+<details class="sub" id="backup">
+ <summary>Резервная копия</summary>
+ <p class="note">Один файл со всем: неисправности с фото, категории, сценарии, алгоритмы, журнал, избранное. Сохраняйте его перед сменой телефона или очисткой браузера. Восстановление заменяет текущие данные; подходят и файлы из прошлых версий.</p>
+ <p id="storageInfo" class="note"></p>
+ <div class="actions start"><button id="exportAll" type="button" class="primary">Скачать копию</button><label class="fileButton">Восстановить из файла<input id="importAll" type="file" accept=".json,application/json"></label></div>
+</details>
+</details>
+
+<p class="note">Справочные данные — не замена измерениям. Перед работой с электрическими узлами отключайте питание.</p>
+</main>
+<nav>
+ <a href="#top" id="navHome">⌂<span>Главная</span></a>
+ <a href="#top" id="navSearch">⌕<span>Поиск</span></a>
+ <a href="#base" id="navAdd">＋<span>Добавить</span></a>
+ <a href="#tools" id="navTools">Ω<span>Инструменты</span></a>
+ <a href="#journal" id="navJournal">☰<span>Журнал</span></a>
+</nav>
+</div>
+
+<dialog id="editor"><form id="faultForm">
+ <h2 id="editorTitle">Новая неисправность</h2>
+ <label>Категория<select name="category" id="categorySelect" required></select></label>
+ <label>Марка<input name="brand" list="brandList" autocomplete="off" placeholder="Например, Samsung"></label>
+ <label>Модель<input name="model" list="modelList" autocomplete="off" placeholder="Точная модель"></label>
+ <label>Код ошибки<input name="code" placeholder="Если есть" autocapitalize="characters"></label>
+ <label>Симптом<input name="symptom" required placeholder="Например, не сливает воду"></label>
+ <label>Как проверить<textarea name="check" rows="3" required></textarea></label>
+ <label>Как исправить<textarea name="fix" rows="3"></textarea></label>
+ <label>Режим мультиметра<input name="meterMode" placeholder="Например, сопротивление (при отключённом питании)"></label>
+ <label>Куда установить щупы<textarea name="probePoints" rows="2" placeholder="Только по сервисной схеме"></textarea></label>
+ <label>Ожидаемые показания<input name="expected" placeholder="Диапазон и условия из документации"></label>
+ <label>Источник измерений<input name="source" placeholder="Сервис-мануал, страница"></label>
+ <div class="photoField"><span>Фото платы, точек замера, шильдика</span>
+  <div id="editorPhotos" class="thumbs"></div>
+  <label class="fileButton" id="photoPick">📷 Добавить фото<input id="photoInput" type="file" accept="image/*" multiple></label>
+  <p id="photoNote" class="note"></p>
+ </div>
+ <label>Иллюстрация (ссылка https://)<input name="imageUrl" type="url" pattern="https://.+" placeholder="https://..."></label>
+ <div class="actions sticky"><button type="button" id="cancel">Отмена</button><button type="submit" class="primary">Сохранить</button></div>
+</form></dialog>
+
+<dialog id="guideEditor"><form id="guideForm">
+ <h2 id="guideEditorTitle">Новый алгоритм</h2>
+ <label>Название<input name="title" required></label>
+ <label>Категория<input name="category"></label>
+ <label>Марка<input name="brand"></label>
+ <label>Модель<input name="model"></label>
+ <label>Шаги<textarea name="steps" rows="9" required placeholder="Проверка питания&#10;Отключить от сети, снять крышку&#10;РЕЖИМ: прозвонка&#10;ЩУПЫ: на выводы сетевого шнура&#10;ДА -> 2&#10;НЕТ -> 3&#10;&#10;Проверка ТЭНа&#10;..."></textarea></label>
+ <p class="note">Пустая строка разделяет шаги. Первая строка шага — название, дальше инструкция. Необязательно: «РЕЖИМ:», «ЩУПЫ:», «НОРМА:», «ФОТО: https://…», переходы «ДА -> 2» и «НЕТ -> 3».</p>
+ <div class="actions sticky"><button id="closeGuideEditor" type="button">Отмена</button><button type="submit" class="primary">Сохранить</button></div>
+</form></dialog>
+
+<dialog id="guideDialog">
+ <h2 id="guideTitle"></h2>
+ <p id="guideProgress" class="note"></p>
+ <div id="guideSteps" class="results"></div>
+ <div class="actions sticky"><button id="copyGuide" type="button" hidden>В мои</button><button id="resetGuide" type="button">Сбросить</button><button id="finishGuide" type="button">Завершить</button><button id="closeGuide" type="button" class="primary">Закрыть</button></div>
+</dialog>
+
+<dialog id="journalDialog"><form id="journalForm">
+ <h2 id="journalDialogTitle">Запись в журнал</h2>
+ <label>Что проверяли<input name="title" required></label>
+ <label>Аппарат (марка, модель, серийный номер)<input name="device" list="deviceList" autocomplete="off"></label>
+ <label>Результат<select name="result" id="journalResult"></select></label>
+ <label>Дата<input name="date" type="date" required></label>
+ <label>Заметка<textarea name="note" rows="3" placeholder="Что заменено, какие замеры, что сказать клиенту"></textarea></label>
+ <label class="step-check" id="journalResetWrap" hidden><input type="checkbox" name="resetSteps" checked> Снять отметки шагов после записи</label>
+ <div class="actions sticky"><button type="button" id="journalCancel">Отмена</button><button type="submit" class="primary">Сохранить</button></div>
+</form></dialog>
+
+<dialog id="photoViewer" class="viewer">
+ <img id="viewerImage" alt="">
+ <div class="viewerBar"><button type="button" id="viewerPrev" aria-label="Предыдущее фото">‹</button><span id="viewerCount"></span><button type="button" id="viewerNext" aria-label="Следующее фото">›</button><button type="button" id="viewerClose" class="primary">Закрыть</button></div>
+</dialog>
+
+<datalist id="brandList"></datalist><datalist id="modelList"></datalist><datalist id="deviceList"></datalist>
+
+<dialog id="askDialog" class="ask">
+ <form method="dialog" id="askForm">
+  <p id="askText"></p>
+  <input id="askInput" autocomplete="off" hidden>
+  <textarea id="askArea" rows="6" readonly hidden></textarea>
+  <div class="actions"><button type="button" id="askCancel">Отмена</button><button type="submit" id="askOk" class="primary">Да</button></div>
+ </form>
+</dialog>
+
+<dialog id="measureDialog" class="measureDialog">
+ <small id="measureCats"></small>
+ <h2 id="measureTitle"></h2>
+ <div id="measureBody"></div>
+ <div class="actions sticky"><button type="button" id="measureClose" class="primary" autofocus>Закрыть</button></div>
+</dialog>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script src="./lib.js"></script>
+<script src="./store.js"></script>
+<script src="./reference.js"></script>
+<script src="./app.js"></script>
+<script src="./photos.js"></script>
+<script src="./journal.js"></script>
+<script src="./algorithms.js"></script>
+<script src="./guides.js"></script>
+<script src="./checklists.js"></script>
+<script src="./tools.js"></script>
+<script src="./measurements.js"></script>
+<script src="./measure-draw.js"></script>
+<script src="./measure.js"></script>
+</body>
+</html>
