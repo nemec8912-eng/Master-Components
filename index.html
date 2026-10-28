@@ -36,19 +36,19 @@ button { font: inherit; color: inherit; }
 .lab { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 0;
   background: radial-gradient(70% 55% at 50% 38%, #10203a 0%, #070b13 55%, #030407 100%); }
 .lab .halo { position: absolute; left: 50%; top: -30vh; width: 120vmax; height: 60vh; transform: translateX(-50%); border-radius: 50%;
-  border: 2px solid rgba(255,154,31,.18); box-shadow: 0 0 60px rgba(255,154,31,.12), inset 0 0 80px rgba(46,155,255,.08); animation: halo 9s ease-in-out infinite alternate; }
+  border: 2px solid rgba(255,154,31,.18); box-shadow: 0 0 60px rgba(255,154,31,.12), inset 0 0 80px rgba(46,155,255,.08); animation: halo 4.5s ease-in-out infinite alternate; }
 @keyframes halo { to { transform: translateX(-50%) scale(1.06); opacity: .6; } }
-.lab .beam { position: absolute; top: 0; width: 2px; height: 70vh; background: linear-gradient(180deg, rgba(255,170,60,.0), rgba(255,170,60,.35), transparent); filter: blur(1px); animation: beam 6s ease-in-out infinite; }
+.lab .beam { position: absolute; top: 0; width: 2px; height: 70vh; background: linear-gradient(180deg, rgba(255,170,60,.0), rgba(255,170,60,.35), transparent); filter: blur(1px); animation: beam 3s ease-in-out infinite; }
 @keyframes beam { 50% { opacity: .25; } }
 .lab .tint { position: absolute; width: 50vmax; height: 50vmax; border-radius: 50%; filter: blur(90px); opacity: .22; }
-.lab .t1 { background: var(--blue); left: -18vmax; top: 18vh; animation: drift1 24s ease-in-out infinite alternate; }
-.lab .t2 { background: var(--orange); left: 50%; top: 8vh; margin-left: -25vmax; opacity: .12; animation: drift2 28s ease-in-out infinite alternate; }
-.lab .t3 { background: var(--green); right: -18vmax; top: 22vh; animation: drift1 31s ease-in-out infinite alternate-reverse; }
+.lab .t1 { background: var(--blue); left: -18vmax; top: 18vh; animation: drift1 12s ease-in-out infinite alternate; }
+.lab .t2 { background: var(--orange); left: 50%; top: 8vh; margin-left: -25vmax; opacity: .12; animation: drift2 14s ease-in-out infinite alternate; }
+.lab .t3 { background: var(--green); right: -18vmax; top: 22vh; animation: drift1 15s ease-in-out infinite alternate-reverse; }
 @keyframes drift1 { to { transform: translate(6vmax, 5vmax) scale(1.1); } }
 @keyframes drift2 { to { transform: translate(-4vmax, 6vmax) scale(.9); } }
 .lab .floor { position: absolute; left: -50%; right: -50%; bottom: -10vh; height: 55vh; transform: perspective(500px) rotateX(70deg); transform-origin: bottom;
   background-image: linear-gradient(rgba(124,200,255,.12) 1px, transparent 1px), linear-gradient(90deg, rgba(124,200,255,.12) 1px, transparent 1px); background-size: 60px 60px;
-  mask-image: linear-gradient(to top, #000 10%, transparent 85%); -webkit-mask-image: linear-gradient(to top, #000 10%, transparent 85%); animation: floor 6s linear infinite; }
+  mask-image: linear-gradient(to top, #000 10%, transparent 85%); -webkit-mask-image: linear-gradient(to top, #000 10%, transparent 85%); animation: floor 2.6s linear infinite; }
 @keyframes floor { to { background-position: 0 60px, 0 0; } }
 .lab .dust { position: absolute; bottom: -10px; width: 3px; height: 3px; border-radius: 50%; background: #9fd6ff; box-shadow: 0 0 6px #9fd6ff; opacity: 0; animation: dust linear infinite; }
 @keyframes dust { 10% { opacity: .8; } 90% { opacity: .5; } 100% { transform: translate(var(--dx), -105vh); opacity: 0; } }
@@ -58,7 +58,7 @@ button { font: inherit; color: inherit; }
 .head { display: flex; align-items: center; gap: 14px; margin: 2px 4px 8px; }
 .logo { width: 52px; height: 52px; flex: none; }
 .logo svg { width: 100%; height: 100%; display: block; }
-.logo .ring { transform-origin: 32px 32px; animation: spin 18s linear infinite; }
+.logo .ring { transform-origin: 32px 32px; animation: spin 8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .head h1 { margin: 0; font-size: 24px; line-height: 1.1; font-weight: 800; letter-spacing: -.02em; }
 .head h1 span { background: linear-gradient(90deg, var(--blue2), var(--orange2) 50%, var(--green)); -webkit-background-clip: text; background-clip: text; color: transparent; }
@@ -94,18 +94,18 @@ button { font: inherit; color: inherit; }
 @keyframes levY { from { transform: translateY(calc(var(--ay) * -1)); } to { transform: translateY(var(--ay)); } }
 @keyframes levX { from { transform: translateX(calc(var(--ax) * -1)); } to { transform: translateX(var(--ax)); } }
 @keyframes levR { from { transform: rotate(calc(var(--ar) * -1)); } to { transform: rotate(var(--ar)); } }
-/* Полные циклы ≈ 5,7 / 8,3 / 10,1 с; 7,2 / 6,4 / 11,3 с; 6,6 / 9,1 / 12,7 с (alternate — половина цикла в одну сторону) */
-.slot.dg { --ty: 2.85s; --tx: 4.15s; --tr: 5.05s; --dy: -1.3s; --dx: -2.9s; --dr: -0.4s; --ay: 5px;  --ax: 2.5px; --ar: .55deg; }
-.slot.mc { --ty: 3.6s;  --tx: 3.2s;  --tr: 5.65s; --dy: -2.4s; --dx: -0.7s; --dr: -3.6s; --ay: 6px;  --ax: 3px;   --ar: .5deg; }
-.slot.ps { --ty: 3.3s;  --tx: 4.55s; --tr: 6.35s; --dy: -0.2s; --dx: -3.8s; --dr: -2.2s; --ay: 4.5px; --ax: 3.5px; --ar: .65deg; }
+/* Быстрее по просьбе: полные циклы ≈ 3,1 / 4,7 / 5,8 с; 3,8 / 3,5 / 6,4 с; 3,5 / 5,2 / 7,1 с — у каждой карточки свои, не синхронно */
+.slot.dg { --ty: 1.55s; --tx: 2.35s; --tr: 2.9s;  --dy: -0.7s; --dx: -1.6s; --dr: -0.4s; --ay: 9px;  --ax: 5px;   --ar: 1.1deg; }
+.slot.mc { --ty: 1.9s;  --tx: 1.75s; --tr: 3.2s;  --dy: -1.2s; --dx: -0.4s; --dr: -2.1s; --ay: 11px; --ax: 4.5px; --ar: 1deg; }
+.slot.ps { --ty: 1.75s; --tx: 2.6s;  --tr: 3.55s; --dy: -0.1s; --dx: -2.2s; --dr: -1.3s; --ay: 8px;  --ax: 6px;   --ar: 1.3deg; }
 
 /* Энергетическая платформа под карточкой */
 .plat { position: absolute; left: 50%; bottom: 0; width: 88%; height: 96px; transform: translateX(-50%); pointer-events: none; }
 .plat .disc { position: absolute; left: 50%; top: 50%; width: 100%; aspect-ratio: 1; transform: translate(-50%, -50%) perspective(900px) rotateX(77deg); }
 .plat .disc svg { width: 100%; height: 100%; display: block; overflow: visible; }
-.plat .rot { transform-origin: 200px 200px; animation: spin 26s linear infinite; }
-.plat .rot2 { transform-origin: 200px 200px; animation: spin 38s linear infinite reverse; }
-.plat .rot3 { transform-origin: 200px 200px; animation: spin 14s linear infinite; }
+.plat .rot { transform-origin: 200px 200px; animation: spin 9s linear infinite; }
+.plat .rot2 { transform-origin: 200px 200px; animation: spin 13s linear infinite reverse; }
+.plat .rot3 { transform-origin: 200px 200px; animation: spin 5s linear infinite; }
 .plat .pulse { animation: ringpulse var(--ty) var(--float) infinite alternate; animation-delay: var(--dy); transform-origin: 200px 200px; }
 @keyframes ringpulse { from { opacity: .55; transform: scale(.97); } to { opacity: 1; transform: scale(1.02); } }
 .plat .beam { position: absolute; left: 22%; right: 22%; bottom: 46px; height: 120px; background: linear-gradient(to top, var(--c), transparent); opacity: .16; filter: blur(10px); clip-path: polygon(0 100%, 100% 100%, 82% 0, 18% 0); animation: beamp var(--ty) var(--float) infinite alternate; animation-delay: var(--dy); }
@@ -131,13 +131,13 @@ button { font: inherit; color: inherit; }
 /* Diagnose: неоновое свечение, бегущее по контуру */
 .slot.dg .card::before { content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 2px; z-index: 5;
   background: conic-gradient(from var(--a), transparent 0 60%, rgba(124,200,255,0) 63%, var(--blue2) 73%, #fff 75%, var(--blue2) 77%, transparent 88%);
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; animation: around 4.5s linear infinite; }
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; animation: around 2.4s linear infinite; }
 @keyframes around { to { --a: 360deg; } }
 /* Electronic Lab: оранжевая рамка плавно пульсирует */
-.slot.mc .card::before { content: ""; position: absolute; inset: 0; border-radius: inherit; z-index: 5; box-shadow: inset 0 0 0 2px var(--orange2), inset 0 0 32px rgba(255,154,31,.5); animation: framepulse 3.2s ease-in-out infinite; }
+.slot.mc .card::before { content: ""; position: absolute; inset: 0; border-radius: inherit; z-index: 5; box-shadow: inset 0 0 0 2px var(--orange2), inset 0 0 32px rgba(255,154,31,.5); animation: framepulse 1.6s ease-in-out infinite; }
 @keyframes framepulse { 0%, 100% { opacity: .15; } 50% { opacity: 1; } }
 /* PSU: зелёное свечение мягко дышит */
-.slot.ps .card::before { content: ""; position: absolute; inset: 0; border-radius: inherit; z-index: 5; box-shadow: inset 0 0 0 1.5px var(--green2), inset 0 0 26px rgba(43,227,107,.35); animation: framepulse 4.6s ease-in-out infinite; }
+.slot.ps .card::before { content: ""; position: absolute; inset: 0; border-radius: inherit; z-index: 5; box-shadow: inset 0 0 0 1.5px var(--green2), inset 0 0 26px rgba(43,227,107,.35); animation: framepulse 2.2s ease-in-out infinite; }
 
 .ch { display: flex; align-items: center; gap: 12px; }
 .ch .ic { width: 50px; height: 50px; flex: none; filter: drop-shadow(0 0 8px var(--c)); }
@@ -147,9 +147,9 @@ button { font: inherit; color: inherit; }
 .ch p { margin: 4px 0 0; font-size: 13px; color: var(--c2); font-weight: 600; line-height: 1.3; }
 .ch.center { justify-content: center; text-align: center; }
 .ecgsvg { display: inline-block; width: 58px; height: 22px; vertical-align: middle; margin: 0 2px; }
-.ecgsvg path { stroke-dasharray: 100; animation: beat 1.8s ease-in-out infinite; }
+.ecgsvg path { stroke-dasharray: 100; animation: beat 1.1s ease-in-out infinite; }
 @keyframes beat { 0% { stroke-dashoffset: 100; opacity: .5; } 45% { stroke-dashoffset: 0; opacity: 1; } 100% { stroke-dashoffset: -100; opacity: .5; } }
-.gear { display: inline-block; width: 26px; height: 26px; vertical-align: middle; animation: spin 7s linear infinite; filter: drop-shadow(0 0 6px var(--blue)); }
+.gear { display: inline-block; width: 26px; height: 26px; vertical-align: middle; animation: spin 3.5s linear infinite; filter: drop-shadow(0 0 6px var(--blue)); }
 
 .tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 72px; padding: 7px 3px; border-radius: 12px; text-align: center; font-size: 11px; line-height: 1.15; color: #E6EBF1; hyphens: auto; -webkit-hyphens: auto; overflow-wrap: anywhere;
@@ -166,24 +166,24 @@ button { font: inherit; color: inherit; }
 .dgpic { aspect-ratio: 374 / 506; }
 .mcpic { aspect-ratio: 572 / 434; }
 .pspic { aspect-ratio: 574 / 250; }
-.scanline { position: absolute; left: 0; right: 0; height: 22%; top: -22%; background: linear-gradient(180deg, transparent, rgba(80,180,255,.12) 70%, rgba(150,220,255,.75) 96%, transparent); mix-blend-mode: screen; animation: scanv 3.6s ease-in-out infinite; }
+.scanline { position: absolute; left: 0; right: 0; height: 22%; top: -22%; background: linear-gradient(180deg, transparent, rgba(80,180,255,.12) 70%, rgba(150,220,255,.75) 96%, transparent); mix-blend-mode: screen; animation: scanv 2s ease-in-out infinite; }
 @keyframes scanv { 0% { top: -22%; } 100% { top: 100%; } }
-.blinkdot { animation: blinkd 1.4s ease-in-out infinite; }
+.blinkdot { animation: blinkd .8s ease-in-out infinite; }
 @keyframes blinkd { 0%, 100% { opacity: .15; } 50% { opacity: 1; } }
-.trace { fill: none; stroke-linecap: round; stroke-dasharray: 10 70; animation: run 2.2s linear infinite; }
+.trace { fill: none; stroke-linecap: round; stroke-dasharray: 10 70; animation: run 1.1s linear infinite; }
 @keyframes run { to { stroke-dashoffset: -80; } }
-.led { animation: ledon 4s ease-in-out infinite; mix-blend-mode: screen; }
+.led { animation: ledon 2s ease-in-out infinite; mix-blend-mode: screen; }
 @keyframes ledon { 0%, 60%, 100% { opacity: 0; } 70%, 85% { opacity: 1; } }
-.mcimg { animation: lit 5s ease-in-out infinite; }
+.mcimg { animation: lit 2.5s ease-in-out infinite; }
 @keyframes lit { 0%, 100% { filter: brightness(1) saturate(1); } 50% { filter: brightness(1.12) saturate(1.15); } }
-.fan { transform-origin: 468px 118px; transform-box: view-box; animation: spin 6s linear infinite; mix-blend-mode: screen; }
+.fan { transform-origin: 468px 118px; transform-box: view-box; animation: spin 1.6s linear infinite; mix-blend-mode: screen; }
 
 .flowrow { display: grid; grid-template-columns: 1.05fr 1fr 1fr 1.15fr 1.1fr; gap: 5px; }
 .fb { border-radius: 10px; border: 1px solid rgba(43,227,107,.45); background: linear-gradient(180deg, rgba(43,227,107,.09), rgba(0,0,0,.3)); padding: 5px 4px; text-align: center; font-size: 10px; line-height: 1.1; color: #DFFFE9; min-width: 0; }
 .fb svg { display: block; width: 100%; height: 34px; margin-top: 3px; }
 .outs { display: flex; flex-direction: column; gap: 3px; margin-top: 4px; font-size: 10.5px; font-weight: 700; text-align: right; }
 .outs span { display: flex; align-items: center; justify-content: flex-end; white-space: nowrap; }
-.outs i { display: inline-block; flex: none; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 4px; animation: flick 2.4s ease-in-out infinite; }
+.outs i { display: inline-block; flex: none; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 4px; animation: flick 1.2s ease-in-out infinite; }
 @keyframes flick { 0%, 100% { opacity: 1; box-shadow: 0 0 8px currentColor; } 47% { opacity: .55; } 50% { opacity: 1; } 53% { opacity: .7; } }
 .scope { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 8px; }
 .osc { border-radius: 12px; border: 1px solid rgba(43,227,107,.35); background: #04100a; position: relative; overflow: hidden; display: flex; flex-direction: column; }
@@ -405,9 +405,9 @@ button { font: inherit; color: inherit; }
             </svg>
             <div class="lg"><span><b style="background:#FFD23A"></b>Вход (AC)</span><span><b style="background:#FF6A3D"></b>После выпрямителя</span><span><b style="background:#3BB8FF"></b>Выход (DC)</span></div></div>
             <div class="knobs"><b>Регулировка параметров</b>
-              <span>Входное напряжение<small>(AC 220V)</small><span class="sl"><i style="--k:4.2s;--k0:58%;--k1:72%"></i></span></span>
-              <span>Нагрузка (Вт)<span class="sl"><i style="--k:5.4s;--k0:30%;--k1:62%"></i></span></span>
-              <span>Частота (кГц)<span class="sl"><i style="--k:6.6s;--k0:40%;--k1:55%"></i></span></span>
+              <span>Входное напряжение<small>(AC 220V)</small><span class="sl"><i style="--k:2.1s;--k0:58%;--k1:72%"></i></span></span>
+              <span>Нагрузка (Вт)<span class="sl"><i style="--k:2.7s;--k0:30%;--k1:62%"></i></span></span>
+              <span>Частота (кГц)<span class="sl"><i style="--k:3.3s;--k0:40%;--k1:55%"></i></span></span>
             </div>
           </div>
           <div class="tiles" aria-hidden="true">
@@ -494,7 +494,7 @@ button { font: inherit; color: inherit; }
 
   // Пылинки в воздухе лаборатории
   var dust = document.getElementById('dust');
-  if (!reduce) for (var i = 0; i < 26; i++) { var p = document.createElement('i'); p.className = 'dust'; p.style.left = (Math.random() * 100) + '%'; p.style.setProperty('--dx', (Math.random() * 60 - 30) + 'px'); p.style.animationDuration = (12 + Math.random() * 14) + 's'; p.style.animationDelay = (-Math.random() * 20) + 's'; if (i % 3 === 1) { p.style.background = '#ffb35c'; p.style.boxShadow = '0 0 6px #ffb35c'; } if (i % 3 === 2) { p.style.background = '#7dffa8'; p.style.boxShadow = '0 0 6px #7dffa8'; } dust.appendChild(p); }
+  if (!reduce) for (var i = 0; i < 26; i++) { var p = document.createElement('i'); p.className = 'dust'; p.style.left = (Math.random() * 100) + '%'; p.style.setProperty('--dx', (Math.random() * 60 - 30) + 'px'); p.style.animationDuration = (6 + Math.random() * 7) + 's'; p.style.animationDelay = (-Math.random() * 10) + 's'; if (i % 3 === 1) { p.style.background = '#ffb35c'; p.style.boxShadow = '0 0 6px #ffb35c'; } if (i % 3 === 2) { p.style.background = '#7dffa8'; p.style.boxShadow = '0 0 6px #7dffa8'; } dust.appendChild(p); }
 
   // ---------- Программная анимация: осциллограммы, синусоида входа, энергетические волны между карточками ----------
   var w1 = document.getElementById('w1'), w2 = document.getElementById('w2'), w3 = document.getElementById('w3'), acw = document.getElementById('acw');
@@ -502,7 +502,7 @@ button { font: inherit; color: inherit; }
   function wave(fn, w, step) { var d = ''; for (var x = 0; x <= w; x += step) d += (x ? ' L' : 'M') + x + ' ' + fn(x).toFixed(1); return d; }
   var t0 = performance.now();
   function draw(now) {
-    var t = (now - t0) / 1000, ph = t * 2.2;
+    var t = (now - t0) / 1000, ph = t * 4.4;
     w1.setAttribute('d', wave(function (x) { return 24 - 15 * Math.sin(x / 14 - ph); }, 220, 2));
     w2.setAttribute('d', wave(function (x) { return 74 - 22 * Math.abs(Math.sin(x / 14 - ph)); }, 220, 2));
     w3.setAttribute('d', wave(function (x) { return 88 - 1.5 * Math.sin(x / 3 - ph * 6); }, 220, 2));
@@ -510,7 +510,7 @@ button { font: inherit; color: inherit; }
     if (window.innerWidth >= 1180) wv.forEach(function (p, k) {
       p.setAttribute('d', wave(function (x) {
         var env = Math.pow(Math.sin(Math.PI * ((x / 1000 * 3) % 1)), .6); // волны видны в промежутках между карточками
-        return 70 + (26 - k * 6) * Math.sin(x / (18 + k * 7) - t * (3 + k)) * (0.35 + 0.65 * (1 - env)) * Math.sin(t * .7 + k);
+        return 70 + (26 - k * 6) * Math.sin(x / (18 + k * 7) - t * (6 + 2 * k)) * (0.35 + 0.65 * (1 - env)) * Math.sin(t * 1.4 + k);
       }, 1000, 5));
     });
   }

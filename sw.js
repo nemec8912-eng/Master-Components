@@ -1,6 +1,6 @@
 /* Офлайн-кэш стартового экрана Master Toolkit.
    Запросы к проектам (components/, diagnose/, psu/) не трогает — у каждого свой service worker. */
-var VERSION = 'hub-v1';
+var VERSION = 'hub-v2';
 var FILES = ['./', 'index.html', 'manifest.webmanifest', 'hub-icon.svg', 'hub-icons/icon-192.png', 'hub-icons/icon-512.png', 'hub-icons/apple-touch-icon.png',
   'hub-img/diagnose.jpg', 'hub-img/components.jpg', 'hub-img/psu.jpg'];
 var APPS = /\/(components|diagnose|psu)\//;
