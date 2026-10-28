@@ -11,8 +11,16 @@
       if (on) for (var j = 0; j < keys.length; j++) if (('on|' + keys[j]) in src) return src['on|' + keys[j]];
       for (var k = 0; k < keys.length; k++) if (keys[k] in src) return src[keys[k]];
     }
+    // Постоянное напряжение: при перевороте щупов знак меняется
+    if (mode === 'v') {
+      var rev = mode + ':' + black + '>' + red;
+      for (var q = 0; q < srcs.length; q++) {
+        var v = on && ('on|' + rev) in srcs[q] ? srcs[q]['on|' + rev] : (rev in srcs[q] ? srcs[q][rev] : undefined);
+        if (v !== undefined) return typeof v === 'number' ? (v === 0 ? 0 : -v) : v;
+      }
+    }
     for (var m = 0; m < srcs.length; m++) if ((mode + ':*') in srcs[m]) return srcs[m][mode + ':*'];
-    return 'OL';
+    return mode === 'v' ? 0 : 'OL';
   }
 
   function sig(n, digits) {
@@ -32,6 +40,9 @@
         return { val: sig(v / 1e6, 3), unit: 'MΩ' };
       case 'diode':
         return { val: v.toFixed(3), unit: 'V' };
+      case 'v':
+        var a = Math.abs(v), dg = a < 2 ? 3 : a < 20 ? 2 : a < 200 ? 1 : 0;
+        return { val: (v < 0 ? '-' : '') + a.toFixed(dg), unit: 'V' };
       case 'cap':
         if (v === 0) return { val: '0.00', unit: 'nF' };
         if (v < 0.001) return { val: sig(v * 1e6, 3), unit: 'pF' };

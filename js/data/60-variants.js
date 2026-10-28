@@ -125,7 +125,12 @@ MC.variant = function (comp, i) {
   c.states = comp.states.map(function (st) {
     var r = {};
     Object.keys(st.r).forEach(function (k) { r[k] = scaled(k, st.r[k]); });
-    return Object.assign({}, st, { r: r, note: st.ok ? v.label : st.note });
+    // Точные значения для варианта (o: {idСостояния: {r: {...}, glow: {...}}}) — поверх масштабирования
+    var ov = v.o && v.o[st.id];
+    if (ov && ov.r) Object.keys(ov.r).forEach(function (k) { r[k] = ov.r[k]; });
+    var extra = { r: r, note: st.ok ? v.label : st.note };
+    if (ov && ov.glow) extra.glow = ov.glow;
+    return Object.assign({}, st, extra);
   });
   return c;
 };

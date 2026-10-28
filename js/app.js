@@ -55,8 +55,25 @@
     appliance: { c: '#FF8A3D', i: '<path d="M12 3c.8 3.5 5 5 5 10a5 5 0 0 1-10 0c0-2.6 1.6-3.8 2-5.6.9.9 1.5 2 2.6 2.4-.2-2.3-.6-4.4.4-6.8z"/>' },
     fridge:    { c: '#2ED3C6', i: '<path d="M12 2v20M3.3 7l17.4 10M3.3 17L20.7 7M9 4l3 2 3-2M9 20l3-2 3 2"/>' },
     micro:     { c: '#FF5A55', i: '<rect x="2.5" y="5" width="19" height="14" rx="2"/><rect x="5.5" y="8" width="10" height="8" rx="1"/><path d="M18.5 9v.01M18.5 12v.01M18.5 15v.01"/>' },
-    switch:    { c: '#3FD47A', i: '<path d="M12 3v8"/><path d="M6.6 6.6a7.5 7.5 0 1 0 10.8 0"/>' }
+    switch:    { c: '#3FD47A', i: '<path d="M12 3v8"/><path d="M6.6 6.6a7.5 7.5 0 1 0 10.8 0"/>' },
+    power:     { c: '#A3E05A', i: '<rect x="3" y="7" width="16" height="10" rx="2"/><path d="M21 10.5v3"/><path d="M10 9l-2 3h4l-2 3"/>' },
+    tv:        { c: '#FF6FB1', i: '<rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M8 20h8M12 16v4"/><path d="M6 13h.01M9 13h.01M12 13h.01M15 13h.01M18 13h.01"/>' }
   };
+  // ---------- Избранное, недавние, статистика ошибок ----------
+  function favs() { return store('fav') || []; }
+  function isFav(id) { return favs().indexOf(id) >= 0; }
+  function toggleFav(id) { var f = favs(), i = f.indexOf(id); if (i >= 0) f.splice(i, 1); else f.unshift(id); store('fav', f); return i < 0; }
+  function pushRecent(id) { var r = (store('recent') || []).filter(function (x) { return x !== id; }); r.unshift(id); store('recent', r.slice(0, 8)); }
+  function recordAnswer(c, s, right) {
+    var st = store('stats') || {}, e = st[c.id] || { r: 0, t: 0, w: {} };
+    e.t++; if (right) e.r++; else e.w[s.id] = (e.w[s.id] || 0) + 1;
+    st[c.id] = e; store('stats', st);
+  }
+  function weakList() {
+    var st = store('stats') || {};
+    return Object.keys(st).filter(function (id) { return compById[id] && st[id].t > st[id].r; }).map(function (id) { var e = st[id]; return { c: compById[id], e: e, rate: (e.t - e.r) / e.t }; })
+      .sort(function (a, b) { return b.rate - a.rate || (b.e.t - b.e.r) - (a.e.t - a.e.r); });
+  }
   function icon(paths, size) { return '<svg viewBox="0 0 24 24" width="' + (size || 22) + '" height="' + (size || 22) + '" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + paths + '</svg>'; }
   var ICO = {
     back: '<path d="M15 5l-7 7 7 7"/>',
@@ -156,7 +173,7 @@
       '<main class="wrap hm">' +
       '<div class="search"><span class="s-ic">' + icon(ICO.search, 20) + '</span><input id="q" type="search" placeholder="Поиск: диод, ТЭН, симистор…" autocomplete="off" enterkeyhint="search"><button class="s-clr" id="qclr" aria-label="Очистить" hidden>' + icon(ICO.x, 18) + '</button></div>' +
       '<div id="results"></div>' +
-      '<div id="catlist"><h2 class="sect">Категории</h2><div class="accs">';
+      '<div id="catlist">' + homeLists() + '<h2 class="sect">Категории</h2><div class="accs">';
     MC.categories.forEach(function (c) {
       var items = MC.components.filter(function (x) { return x.cat === c.id; });
       var cu = CAT_UI[c.id] || CAT_UI.passive, isOpen = openCat === c.id;
@@ -206,6 +223,14 @@
     });
     clr.addEventListener('click', function () { q.value = ''; q.dispatchEvent(new Event('input')); q.focus(); });
   }
+  function homeLists() {
+    var f = favs().map(function (id) { return compById[id]; }).filter(Boolean);
+    var r = (store('recent') || []).map(function (id) { return compById[id]; }).filter(Boolean).slice(0, 8);
+    var out = '';
+    if (f.length) out += '<h2 class="sect">★ Избранное</h2><div class="cgrid mini">' + f.map(function (x, i) { return compCard(x, null, i); }).join('') + '</div>';
+    if (r.length) out += '<h2 class="sect">Недавние</h2><div class="cgrid mini">' + r.map(function (x, i) { return compCard(x, null, i); }).join('') + '</div>';
+    return out;
+  }
   function tile(href, ic, t) { return '<a class="tile" href="' + href + '"><span>' + ic + '</span><b>' + t + '</b></a>'; }
   function toolCard(href, ic, t, d, c, i) {
     return '<a class="tool2" href="' + href + '" style="--c:' + (c || 'var(--acc)') + ';--i:' + (i || 0) + '"><span class="tool2-ic">' + icon(ic, 24) + '</span><b>' + t + '</b><small>' + d + '</small><span class="tool2-go">' + icon(ICO.chev, 16) + '</span></a>';
@@ -218,7 +243,7 @@
   function viewTools() {
     var L = [
       ['#/resistor', ICO.rainbow, 'Цвета резисторов', 'Маркировка 4, 5, 6 полос и обратно', '#F5B82E'],
-      ['#/smd', ICO.smd, 'SMD-коды', 'Резисторы 103, 4R7, 01C; конденсаторы 104', '#3EA6FF'],
+      ['#/smd', ICO.smd, 'SMD-коды', 'Резисторы, конденсаторы, транзисторы и диоды SOT-23', '#3EA6FF'],
       ['#/calcs', ICO.calc, 'Калькуляторы', 'Ом, ТЭН, светодиод, делитель и другие', '#A66BFF'],
       ['#/pinouts', ICO.pin, 'Цоколёвки', 'TO-92, TO-220, TO-247, SOT, DIP-8', '#2ED3C6'],
       ['#/analogs', ICO.swap, 'Аналоги и замена', 'Чем заменить и на что смотреть', '#FF8A3D'],
@@ -228,6 +253,16 @@
     $app.innerHTML = brandHeader('Инструменты и справочники') + '<main class="wrap"><h2 class="sect">Инструменты</h2><div class="tgrid">' +
       L.map(function (t, i) { return toolCard(t[0], t[1], t[2], t[3], t[4], i); }).join('') + '</div></main>';
   }
+  // Слабые места: где чаще всего ошибались в экзамене и тренировках
+  function weakBlock() {
+    var w = weakList();
+    if (!w.length) return '<h2 class="sect">Слабые места</h2><p class="muted">Здесь появятся компоненты, на которых вы ошибались в экзамене. Пока ошибок нет.</p>';
+    return '<h2 class="sect">Слабые места</h2><div class="list">' + w.slice(0, 6).map(function (x) {
+      var worst = Object.keys(x.e.w).sort(function (a, b) { return x.e.w[b] - x.e.w[a]; })[0];
+      var stn = (x.c.states.find(function (s) { return s.id === worst; }) || {}).name || '';
+      return '<a class="row" href="#/quiz/' + x.c.id + '"><span class="row-ph">' + MC.photo(x.c) + '</span><span class="row-tx"><b>' + esc(x.c.name) + '</b><small>Ошибок ' + (x.e.t - x.e.r) + ' из ' + x.e.t + (stn ? ' · чаще всего: «' + esc(stn) + '»' : '') + '</small></span><span class="chev">' + icon(ICO.chev, 18) + '</span></a>';
+    }).join('') + '</div><div class="row2"><a class="btn" href="#/quiz/weak">🎯 Экзамен по слабым местам</a><button class="btn ghost" id="wreset">Сбросить статистику</button></div>';
+  }
   // ---------- Тренажёры ----------
   function viewTrainers() {
     var sc = store('score') || { right: 0, total: 0 }, ns = store('nodeScore') || { right: 0, total: 0 };
@@ -235,7 +270,9 @@
       toolCard('#/quiz', ICO.exam, 'Экзамен: найди неисправность', 'Скрытая поломка, меряете и выбираете ответ. Тренировка на любом компоненте.', '#F5B82E', 0) +
       toolCard('#/nodes', ICO.nodes, 'Схемы узлов', 'БП, стиралка, СВЧ, холодильник, кондиционер — найдите сгоревший компонент.', '#3EA6FF', 1) +
       '</div>' +
-      '<h2 class="sect">Ваш счёт</h2><div class="stats"><div class="stat"><b>' + sc.right + '<small> / ' + sc.total + '</small></b><span>Тренировки</span></div><div class="stat"><b>' + ns.right + '<small> / ' + ns.total + '</small></b><span>Схемы узлов</span></div></div></main>';
+      '<h2 class="sect">Ваш счёт</h2><div class="stats"><div class="stat"><b>' + sc.right + '<small> / ' + sc.total + '</small></b><span>Тренировки</span></div><div class="stat"><b>' + ns.right + '<small> / ' + ns.total + '</small></b><span>Схемы узлов</span></div></div>' +
+      weakBlock() + '</main>';
+    var rs = document.getElementById('wreset'); if (rs) rs.onclick = function () { store('stats', {}); viewTrainers(); };
   }
 
   // ---------- Категория ----------
@@ -493,7 +530,8 @@
       Sound.play(lastM && lastM.beep);
       if (opts.onChange) opts.onChange(st);
     });
-    if (comp.pins.length >= 2) { st.red = comp.pins[0].id; st.black = comp.pins[1].id; }
+    if (comp.probes) { st.red = comp.probes[0]; st.black = comp.probes[1]; }
+    else if (comp.pins.length >= 2) { st.red = comp.pins[0].id; st.black = comp.pins[1].id; }
     render();
     return {
       setState: function (s) { st.state = mapState(s); render(); Sound.play(lastM && lastM.beep); },
@@ -509,12 +547,15 @@
   function viewComp(id, tab) {
     var c = compById[id]; if (!c) return viewHome();
     tab = tab || 'test';
+    pushRecent(c.id);
     var tabs = [['test', 'Проверка'], ['info', 'Справочник'], ['fails', 'Неисправности']];
     var html = header(c.name, '#/') + '<main class="wrap">' +
-      '<div class="hero" style="--c:' + (CAT_UI[c.cat] || CAT_UI.passive).c + '"><div class="hero-ph">' + MC.photo(c) + '</div><div class="hero-tx"><span class="hero-cat">' + esc((catById[c.cat] || {}).name || '') + '</span><p>' + esc(c.sub) + '</p><span class="hero-sym" title="Условное обозначение на схеме">' + MC.symbol(c.sym) + '</span></div></div>' +
+      '<div class="hero" style="--c:' + (CAT_UI[c.cat] || CAT_UI.passive).c + '"><div class="hero-ph">' + MC.photo(c) + '</div><div class="hero-tx"><span class="hero-cat">' + esc((catById[c.cat] || {}).name || '') + '</span><p>' + esc(c.sub) + '</p><span class="hero-sym" title="Условное обозначение на схеме">' + MC.symbol(c.sym) + '</span></div>' +
+      '<button class="fav-btn' + (isFav(c.id) ? ' on' : '') + '" id="favb" aria-label="В избранное" title="В избранное">' + (isFav(c.id) ? '★' : '☆') + '</button></div>' +
       '<nav class="tabs">' + tabs.map(function (t) { return '<a class="' + (t[0] === tab ? 'on' : '') + '" href="#/c/' + c.id + '/' + t[0] + '">' + t[1] + '</a>'; }).join('') + '</nav>' +
       '<section id="tab"></section></main>';
     $app.innerHTML = html;
+    document.getElementById('favb').onclick = function () { var on = toggleFav(c.id); this.classList.toggle('on', on); this.textContent = on ? '★' : '☆'; };
     var $t = document.getElementById('tab');
     if (tab === 'test') renderTest($t, c);
     else if (tab === 'info') renderInfo($t, c);
@@ -615,6 +656,7 @@
         (s.ok ? '' : fold('Что показывал прибор', readingsTable(c, s, false), true)) +
         '<div class="row2"><button class="btn" id="next">' + esc(ctx.nextLabel) + '</button><a class="btn ghost" href="#/c/' + c.id + '">Справочник</a></div>';
       document.getElementById('next').onclick = function () { ctx.next(); window.scrollTo(0, 0); };
+      recordAnswer(c, s, right);
       ctx.onAnswer(right, c, s);
     });
   }
@@ -626,6 +668,7 @@
   }
   function viewQuiz(arg) {
     var score = store('score') || { right: 0, total: 0 };
+    if (arg === 'weak') { runExam({ cat: 'weak', n: 10 }); return; }
     if (arg && compById[arg]) {
       // Тренировка на одном компоненте — бесконечно
       var c = compById[arg];
@@ -653,12 +696,20 @@
     document.getElementById('estart').onclick = function () { runExam(cfg); };
   }
   function runExam(cfg) {
-    var pool = MC.components.filter(function (x) { return cfg.cat === 'all' || x.cat === cfg.cat; });
+    var stats = store('stats') || {};
+    var pool = cfg.cat === 'weak' ? weakList().map(function (x) { return x.c; }) : MC.components.filter(function (x) { return cfg.cat === 'all' || x.cat === cfg.cat; });
+    if (!pool.length) pool = MC.components.slice();
+    // В режиме «слабые места» чаще спрашиваем те состояния, на которых ошибались
+    function pickWeak(c) {
+      var e = stats[c.id], ids = e ? Object.keys(e.w) : [];
+      if (cfg.cat === 'weak' && ids.length && Math.random() < 0.6) { var id = ids[Math.floor(Math.random() * ids.length)], st = c.states.find(function (s) { return s.id === id; }); if (st) return st; }
+      return pickState(c);
+    }
     var qs = [], i;
     var shuffled = pool.slice().sort(function () { return Math.random() - 0.5; });
-    for (i = 0; i < cfg.n; i++) { var c = shuffled[i % shuffled.length]; qs.push({ c: c, s: pickState(c) }); }
+    for (i = 0; i < cfg.n; i++) { var c = shuffled[i % shuffled.length]; qs.push({ c: c, s: pickWeak(c) }); }
     var k = 0, right = 0, mistakes = [];
-    var catName = cfg.cat === 'all' ? 'Все компоненты' : catById[cfg.cat].name;
+    var catName = cfg.cat === 'all' ? 'Все компоненты' : cfg.cat === 'weak' ? 'Слабые места' : catById[cfg.cat].name;
     function show() {
       if (k >= qs.length) return finish();
       $app.innerHTML = header('Экзамен · ' + catName, '#/quiz') + '<main class="wrap">' +
@@ -756,10 +807,22 @@
       '<p class="muted">Форматы: 3 цифры (5%), 4 цифры (1%), буква R/K/M вместо запятой, EIA-96 — две цифры и буква.</p></div>' +
       '<div class="card"><div class="lbl">Конденсатор</div><div class="inrow"><input id="sc" placeholder="104, 222J, 4n7, 0.1" autocomplete="off"></div><div id="scout" class="decode"></div>' +
       '<p class="muted">Код из трёх цифр — в пикофарадах. SMD-керамика обычно без маркировки — только измерять.</p></div>' +
-      '<div class="card"><div class="lbl">Частые коды</div><table class="rt"><tbody>' +
+      '<div class="card"><div class="lbl">Транзистор или диод SOT-23 (код на корпусе)</div><div class="inrow"><input id="ss" placeholder="1AM, 702, A7, KL3, BC847" autocomplete="off" autocapitalize="characters"></div><div id="ssout" class="decode"></div>' +
+      '<p class="muted">Только коды, сверенные с даташитом производителя. Один и тот же код у разных производителей может означать разные детали — сверяйте со схемой и замером. Символ после кода (1AM<b>W</b>, 1F<b>t</b>) — обычно завод или дата.</p></div>' +
+      '<details class="fold"><summary>📋 Все коды SOT-23 (' + MC.smdCodes.length + ')</summary><div class="fold-b"><table class="rt smdt"><tbody>' + MC.smdCodes.map(function (r) { return '<tr><td><b>' + esc(r.code) + '</b></td><td>' + esc(r.part) + '<br><small class="muted">' + esc(r.type) + '</small></td><td class="small">' + esc(r.mfr) + '</td></tr>'; }).join('') + '</tbody></table></div></details>' +
+      '<div class="card"><div class="lbl">Частые коды резисторов и конденсаторов</div><table class="rt"><tbody>' +
       [['100', '10 Ом'], ['101', '100 Ом'], ['102', '1 кОм'], ['472', '4,7 кОм'], ['103', '10 кОм'], ['104', '100 кОм / 100 нФ'], ['105', '1 МОм / 1 мкФ'], ['4R7', '4,7 Ом'], ['R100', '0,1 Ом'], ['000', 'Перемычка 0 Ом'], ['01C', '10 кОм 1%'], ['68X', '49,9 Ом 1%']]
         .map(function (r) { return '<tr><td><b>' + r[0] + '</b></td><td>' + r[1] + '</td></tr>'; }).join('') + '</tbody></table></div></main>';
-    var sr = document.getElementById('sr'), sc = document.getElementById('sc');
+    var sr = document.getElementById('sr'), sc = document.getElementById('sc'), ss = document.getElementById('ss');
+    ss.addEventListener('input', function () {
+      var o = document.getElementById('ssout'), q = ss.value.trim();
+      if (!q) { o.innerHTML = ''; return; }
+      var f = MC.smdLookup(q);
+      o.innerHTML = f.length ? f.slice(0, 6).map(function (r) {
+        var link = r.comp && compById[r.comp] ? ' · <a href="#/c/' + r.comp + '">как проверять</a>' : '';
+        return '<div class="smdhit"><div class="big">' + esc(r.code) + ' → ' + esc(r.part) + '</div><p>' + esc(r.type) + '</p><p class="muted">Выводы: ' + esc(r.pins) + '</p><p class="muted">' + esc(r.mfr) + ' · <a href="' + esc(r.src[1]) + '" target="_blank" rel="noopener">' + esc(r.src[0]) + '</a>' + link + '</p></div>';
+      }).join('') : '<p class="muted">Такого кода нет в проверенной таблице. Ищите по даташиту производителя (код + корпус SOT-23).</p>';
+    });
     sr.addEventListener('input', function () {
       var r = T.decodeSmdRes(sr.value), o = document.getElementById('srout');
       o.innerHTML = !sr.value.trim() ? '' : r ? '<div class="big">' + T.fmtOhm(r.value) + '</div><p class="muted">' + esc(r.how) + '</p>' : '<p class="muted">Неизвестный код.</p>';

@@ -19,14 +19,17 @@
     varistor: 'varistor', reg78: 'reg', tl431: 'reg',
     quartz: 'osc', magnetron: 'magnetron', wires: 'wires',
     zener_smd: 'diode', pwm_uc: 'pwm', pwm_sw: 'pwm', pwm_ncp: 'pwm',
-    opto_triac: 'switch', opto_fast: 'switch', opto_drv: 'switch'
+    opto_triac: 'switch', opto_fast: 'switch', opto_drv: 'switch',
+    li18650: 'batt', liphone: 'batt', pack: 'batt', bms: 'batt', usbc: 'res', led_bl: 'led', bl_strip: 'strip',
+    dualmos: 'switch', fan: 'motor', ddmotor: 'motor', indcoil: 'heater'
   };
   // Подпись управляющего воздействия для ключей
   var CTRL = {
     npn: 'Подать ток на базу', pnp: 'Подать ток на базу', mosfet: 'Напряжение на затвор', igbt: 'Напряжение на затвор',
     triac: 'Импульс на управляющий', scr: 'Импульс на управляющий', opto: 'Включить светодиод оптопары',
     relay: 'Подать 12 В на катушку', button: 'Нажать кнопку', ubl: 'Подать 220 В на УБЛ', pressostat: 'Подуть (давление воды)', hall: 'Поднести магнит',
-    opto_triac: 'Включить светодиод оптопары', opto_fast: 'Подать сигнал на светодиод', opto_drv: 'Подать сигнал на светодиод'
+    opto_triac: 'Включить светодиод оптопары', opto_fast: 'Подать сигнал на светодиод', opto_drv: 'Подать сигнал на светодиод',
+    dualmos: 'Напряжение на затвор G1'
   };
 
   // ---------- Поведение по состоянию ----------
@@ -58,7 +61,29 @@
     hvcap: { ground: 'leak' },
     magnetron: { ground: 'leak' },
     mot: { ground: 'leak' },
-    led: { weak: 'weak' }
+    led: { weak: 'weak' },
+    li18650: { deep: 'nogo', dead: 'short', worn: 'weak' },
+    liphone: { prot: 'nogo', ntc: 'ntcopen', worn: 'weak', swollen: 'mech' },
+    pack: { imbalance: 'weak', cell: 'cellshort', deep: 'nogo', strip: 'open' },
+    bms: { od: 'nogo', fetopen: 'open', oc: 'trip', fetshort: 'always' },
+    usbc: { vbusshort: 'short', ccopen: 'open', dshort: 'drift', vbusopen: 'nogo' },
+    led_bl: { weak: 'weak' },
+    dualmos: { short1: 'always', short2: 'always', gate1: 'gateshort', noopen1: 'never' },
+    fan: { stuck: 'jam', short: 'short' },
+    ddmotor: { turns: 'hot', ground: 'leak', hall: 'jerky', nopower: 'jerky' },
+    indcoil: { turns: 'hot', strands: 'hot' }
+  };
+  // Свои пояснения для отдельных компонентов (вместо общих по типу анимации)
+  var CMSG = {
+    li18650: { ok: 'Подключите нагрузку: банка отдаёт ток, лампа горит ярко, напряжение почти не проседает.', nogo: 'Глубокий разряд: энергии нет — лампа не горит.', short: 'Внутреннее КЗ: банка разряжается сама в себя и греется, на выходе 0.', weak: 'Износ: под нагрузкой напряжение проседает — лампа тусклая.' },
+    liphone: { ok: 'Аккумулятор отдаёт ток в телефон — всё работает.', nogo: 'Сработала защита: плата отключила выход — тока нет.', ntcopen: 'Ток отдаёт, но телефон не видит температуру и не заряжает аккумулятор.', weak: 'Износ: под нагрузкой проседает — телефон выключается раньше времени.', mech: 'Вздутие: электрически работает, но это опасно.' },
+    pack: { ok: 'Три банки последовательно складывают напряжение — инструмент крутит.', weak: 'Разбаланс: слабая банка садится первой, BMS отключает всю сборку раньше времени.', cellshort: 'Мёртвая банка: сборка выдаёт на 4 В меньше — инструмент слабый.', nogo: 'Глубокий разряд: все банки пустые, тока нет.', open: 'Оборвана перемычка: цепь разорвана — тока нет.' },
+    bms: { ok: 'Ключи открыты — ток идёт из банки в нагрузку. Плата следит за напряжением и током.', nogo: 'Переразряд: ключ разряда закрыт, тока в нагрузку нет. Зарядка снимет защиту.', open: 'Ключ в обрыве: банка заряжена, а ток не идёт.', trip: 'Сработала защита от КЗ: ключи закрыты до подключения зарядки.', always: 'Пробой ключа: ток идёт всегда — защита не сработает при КЗ или переразряде!' },
+    usbc: { ok: 'Зарядка видит резистор 5,1 кОм на CC и подаёт 5 В — ток идёт в устройство.', open: 'Нет резистора на CC: зарядка USB-C не видит устройство и не подаёт 5 В.', short: 'КЗ VBUS–GND: ток идёт мимо устройства, зарядка уходит в защиту.', drift: 'D+ и D− замкнуты: заряжает, но медленно — быстрая зарядка не согласуется.', nogo: 'Контакт VBUS отгорел: питание в устройство не приходит.' },
+    strip: {},
+    fan: { ok: 'Ток через обмотки — крыльчатка крутится, на TACH идут импульсы.', jam: 'Не крутится: ротор стоит, импульсов на TACH нет — плата видит 0 об/мин.', short: 'КЗ драйвера: ток большой, кулер стоит, порт на плате уходит в защиту.', mech: 'Электрически исправен — шумит подшипник.' },
+    ddmotor: { ok: 'Инвертор по сигналам датчика Холла по очереди включает фазы — барабан крутится.', hot: 'Межвитковое в катушке: ток больше, мотор дёргается, инвертор греется.', open: 'Обрыв фазы: вращающееся поле не создаётся — барабан стоит.', leak: 'Пробой на корпус: ток уходит на корпус — выбивает УЗО.', jerky: 'Нет сигналов датчика Холла: инвертор не знает положение ротора — барабан дёргается.' },
+    indcoil: { ok: 'Переменный ток 20–50 кГц в катушке наводит вихревые токи в дне посуды — посуда греется.', open: 'Обрыв: тока в катушке нет — плита не видит посуду.', hot: 'Ток больше нормы, катушка и клемма греются, IGBT перегружаются.', leak: 'Утечка на основание: часть тока уходит на корпус — опасно.' }
   };
   var DEF = { ok: 'ok', open: 'open', short: 'short', leak: 'leak', dry: 'dry', lost: 'dry', drift: 'drift', turns: 'hot', crack: 'jitter', bad: 'jitter', wiper: 'jitter', oxid: 'jitter', weak: 'weak', mech: 'mech', dead: 'nogo', jam: 'jam', ground: 'leak', insul: 'insul' };
   function behavior(comp, state) {
@@ -90,6 +115,7 @@
       pwm: { ok: 'ШИМ работает: на затвор ключа идут прямоугольные импульсы, блок питания выдаёт напряжение.', nogo: 'Импульсов нет: генератор внутри микросхемы не работает, БП мёртвый при наличии питания.', vccshort: 'Пробой по питанию: напряжение на VCC не поднимается, микросхема не стартует.', outshort: 'Выход замкнут: импульсы на затвор ключа не проходят.', dsshort: 'Встроенный ключ пробит: КЗ, горит предохранитель или входной резистор.', hvshort: 'Пробит вход пуска HV: микросхема не стартует от сети.', hiccup: 'Нет управления: ШИМ запускается и сразу уходит в защиту — «цыкает» пачками импульсов.' },
       osc: { ok: 'Кварц генерирует стабильную частоту — микроконтроллер тактируется.', short: 'Пробой: генерации нет — микроконтроллер стоит.', nogo: 'Не генерирует: колебаний нет, плата «мёртвая» при наличии питания.' },
       magnetron: { ok: 'Накал горит, магнетрон излучает СВЧ — еда греется.', open: 'Обрыв накала: катод холодный, излучения нет — не греет.', leak: 'Пробой на корпус: ток уходит на корпус, искрит — не греет.', weak: 'Потеря эмиссии: излучение слабое — греет плохо.' },
+      strip: { ok: 'Тестер гонит ток 20 мА через все светодиоды последовательно — светятся ровно.', open: 'Обрыв одного светодиода: цепь разорвана — не светит вся линейка.', short: 'Пробой одного: он тёмный, ток идёт мимо него, остальные светят ярче и перегреваются.', weak: 'Деградация: один светодиод светит синим и тускло.' },
       wires: { ok: 'Ток идёт по жиле 1 к нагрузке и возвращается по жиле 2.', open: 'Обрыв жилы: цепь разорвана, нагрузка не работает.', short: 'Замыкание жил: ток идёт напрямую между жилами мимо нагрузки — КЗ!', jitter: 'Плохой контакт: ток прерывается — нагрузка мигает.' }
     };
     var t = (M[kind] || {})[b];
@@ -116,8 +142,16 @@
   }
   function build(kind, comp) {
     var g = '', paths = {};
-    var ac = /heater|motor|valve|speaker|diode|led|bridge|xfmr|varistor/.test(kind) || (kind === 'switch' && /triac|relay|ubl|pressostat/.test(comp.id)) || kind === 'thermosw';
-    if (kind === 'xfmr') {
+    var ac = (/heater|motor|valve|speaker|diode|led|bridge|xfmr|varistor/.test(kind) && comp.id !== 'fan') || (kind === 'switch' && /triac|relay|ubl|pressostat/.test(comp.id)) || kind === 'thermosw';
+    if (kind === 'batt') {
+      paths.main = LOOP;
+      g += '<path d="' + LOOP + '" class="an-wire"/>' + lamp(300, 75) + compBox(comp.sym, 115, 5, 100, 40) + '<text x="165" y="80" class="an-cap">источник — сам аккумулятор</text>';
+      g += '<path d="M30 125 L30 25" class="an-wire"/>';
+    } else if (kind === 'strip') {
+      paths.main = LOOP;
+      g += '<path d="' + LOOP + '" class="an-wire"/>' + battery(30, 75, false) + '<text x="62" y="80" class="an-cap">тестер</text>';
+      for (var li = 0; li < 6; li++) { var lx = 80 + li * 36; g += '<g><circle cx="' + lx + '" cy="25" r="13" class="an-cbg"/><circle cx="' + lx + '" cy="25" r="9" fill="#333" data-led="' + li + '"/><path d="M' + (lx - 5) + ' 19 L' + (lx + 5) + ' 25 L' + (lx - 5) + ' 31 Z" fill="#888"/></g>'; }
+    } else if (kind === 'xfmr') {
       paths.main = 'M20 75 L20 25 L140 25 L140 125 L20 125 Z';
       paths.sec = 'M190 125 L190 25 L310 25 L310 125 Z';
       paths.insul = 'M140 75 L190 75';
@@ -183,6 +217,8 @@
     var k = this.kind;
     if (k === 'cap') ctl = '<button data-act="charge">' + (this.sim.conn ? '⏏ Отключить источник' : '▶ Зарядить') + '</button><button data-act="discharge">⟲ Разрядить</button>';
     if (k === 'switch') ctl = '<button data-act="ctrl" class="' + (this.sim.ctrl ? 'on' : '') + '">' + (this.sim.ctrl ? '✓ ' : '') + (CTRL[comp.id] || 'Управление') + '</button>';
+    if (k === 'batt') ctl = '<button data-act="ctrl" class="' + (this.sim.ctrl ? 'on' : '') + '">' + (this.sim.ctrl ? '✓ ' : '') + 'Подключить нагрузку</button>';
+    if (k === 'strip') ctl = '<button data-act="ctrl" class="' + (this.sim.ctrl ? 'on' : '') + '">' + (this.sim.ctrl ? '✓ ' : '') + 'Включить тестер</button>';
     if (k === 'varistor') ctl = '<button data-act="surge">⚡ Скачок напряжения</button>';
     if (k === 'fuse') ctl = '<label class="an-sl">Нагрузка<input type="range" min="0" max="100" value="' + Math.round(this.sim.load * 100) + '" data-sl="load"></label>' + (this.beh === 'ok' ? '<button data-act="restore">↺ Новый</button>' : '');
     if (k === 'tfuse' || k === 'ntc' || k === 'ptc' || k === 'thermosw') ctl = '<label class="an-sl">🌡 Нагрев<input type="range" min="0" max="100" value="' + Math.round(this.sim.temp * 100) + '" data-sl="temp"></label>' + (k === 'tfuse' && this.beh === 'ok' ? '<button data-act="restore">↺ Новый</button>' : '');
@@ -299,6 +335,20 @@
       if (b === 'gateshort' && c) I.ctrl = 1.5;
       I.main = cond; lampB = cond;
       var cw = this.svg.querySelector('[data-ctrlw]'); if (cw) cw.classList.toggle('on', c);
+    } else if (k === 'batt') {
+      var lvb = { ok: 1, weak: 0.4, nogo: 0, short: 0, cellshort: 0.65, ntcopen: 1, mech: 1, open: 0, trip: 0, always: 1 }[b];
+      if (lvb === undefined) lvb = b === 'ok' ? 1 : 0;
+      I.main = s.ctrl ? lvb : 0; lampB = I.main; heat = b === 'short' ? 0.8 : b === 'mech' ? 0.3 : 0;
+      if (!s.ctrl) msgExtra = ' Нажмите «Подключить нагрузку».';
+    } else if (k === 'strip') {
+      var on2 = s.ctrl && b !== 'open';
+      I.main = on2 ? 1 : 0;
+      for (var q = 0; q < 6; q++) {
+        var led = this.svg.querySelector('[data-led="' + q + '"]'); if (!led) continue;
+        var br = !on2 ? 0 : b === 'short' && q === 4 ? 0 : b === 'short' ? 1.2 : b === 'weak' && q === 2 ? 0.3 : 1;
+        led.style.fill = br ? (b === 'weak' && q === 2 ? 'rgba(120,150,255,' + (0.4 + br).toFixed(2) + ')' : 'rgba(255,240,190,' + Math.min(1, br).toFixed(2) + ')') : '#333';
+      }
+      if (!s.ctrl) msgExtra = ' Нажмите «Включить тестер».';
     } else if (k === 'thermosw') {
       var hot = s.temp > 0.6;
       var cond2 = b === 'ok' ? (hot ? 0 : 1) : b === 'always' ? 1 : 0;
@@ -388,7 +438,8 @@
       s.mt = 0.4;
       var el = this.host.querySelector('[data-msg]');
       var bad = !(b === 'ok' || (b === 'mech'));
-      if (el) { el.textContent = msgFor(k, (k === 'fuse' || k === 'tfuse') && b === 'open' ? 'open' : b, s) + msgExtra; el.className = 'an-msg ' + (b === 'ok' ? 'good' : bad ? 'bad' : ''); }
+      var cm = (CMSG[this.comp.id] || {})[b];
+      if (el) { el.textContent = (cm || msgFor(k, (k === 'fuse' || k === 'tfuse') && b === 'open' ? 'open' : b, s)) + msgExtra; el.className = 'an-msg ' + (b === 'ok' ? 'good' : bad ? 'bad' : ''); }
     }
   };
 

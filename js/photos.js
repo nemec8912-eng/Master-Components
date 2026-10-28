@@ -292,6 +292,65 @@
       R(126, 62, 14, 38, '#d8dde2') + R(44, 66, 112, 34, 'url(#phGlossX)', 3));
   };
 
+  // ---------- Аккумуляторы, подсветка ТВ, новые компоненты ----------
+  function cell(x, y, w, h, col, label) {
+    return R(x, y, w, h, col, 8) + R(x, y, w, h, 'url(#phGlossX)', 8) + R(x + w * 0.3, y - 5, w * 0.4, 7, 'url(#phSteelX)', 2) + R(x, y + h - 6, w, 6, 'url(#phSteelX)', 3) +
+      (label ? T(x + w / 2, y + h / 2 + 4, label, 9, '#e8f5ee') : '');
+  }
+  PH.li18650 = function () {
+    return sh(100, 124, 80, 8) + g('rotate(-14 100 78)', R(28, 56, 140, 44, '#1f7a4a', 10) + R(28, 56, 140, 44, 'url(#phGloss)', 10) + R(166, 66, 10, 24, 'url(#phSteel)', 3) + R(22, 58, 8, 40, 'url(#phSteel)', 3) +
+      T(98, 76, 'INR18650', 11, '#e8f5ee') + T(98, 90, '25R · 2500mAh', 8, '#b5dcc6'));
+  };
+  PH.liphone = function () {
+    return sh(100, 132, 76, 8) + P('M34 46 L160 34 L170 112 L44 124 Z', '#2a2e34') + P('M34 46 L160 34 L170 112 L44 124 Z', 'url(#phGlossX)') +
+      P('M62 40 L132 33 L134 46 L64 53 Z', '#1d5fa6') + [80, 96, 112].map(function (x, i) { return R(x, 38 - i * 1.6, 9, 6, '#e2b33b', 1); }).join('') +
+      T(104, 86, 'Li-ion Polymer', 10, '#cfd3d8', ' transform="rotate(-5 104 86)"') + T(106, 100, '3.85V 4.40V', 8, '#8f969e', ' transform="rotate(-5 106 100)"');
+  };
+  PH.pack = function () {
+    return sh(100, 134, 80, 8) + cell(30, 34, 42, 92, '#1f7a4a', '1') + cell(79, 34, 42, 92, '#1f7a4a', '2') + cell(128, 34, 42, 92, '#1f7a4a', '3') +
+      R(30, 26, 92, 8, 'url(#phSteel)', 2) + R(128, 26, 42, 8, 'url(#phSteel)', 2) + S('M170 40 Q186 60 182 132', '#d33', 3.5) + S('M30 120 Q18 128 22 140', '#222', 3.5) + T(100, 146, '3S · 12,6 В', 9, '#aab1b8');
+  };
+  PH.bms = function () {
+    return sh(100, 116, 80, 8) + g('rotate(-8 100 80)', R(26, 56, 148, 46, '#1f5aa8', 4) + R(26, 56, 148, 46, 'url(#phGloss)', 4) + R(70, 70, 18, 12, '#1b1c1f', 1) + R(104, 68, 30, 16, '#1b1c1f', 1) +
+      R(28, 60, 10, 14, '#d8b44a', 1) + R(28, 84, 10, 14, '#d8b44a', 1) + R(162, 60, 10, 14, '#d8b44a', 1) + R(162, 84, 10, 14, '#d8b44a', 1) + T(79, 96, 'DW01A', 7, '#cfd3d8') + T(119, 96, '8205A', 7, '#cfd3d8'));
+  };
+  PH.usbc = function () {
+    return sh(100, 124, 70, 8) + R(46, 50, 108, 52, 'url(#phSteel)', 26) + R(54, 58, 92, 36, '#141518', 18) + R(70, 70, 60, 12, '#2c2e33', 3) +
+      [0, 1, 2, 3, 4, 5].map(function (i) { return R(76 + i * 9, 72, 5, 8, '#d8b44a', 1); }).join('') + R(46, 50, 108, 52, 'url(#phGloss)', 26) + T(100, 122, 'USB-C', 10, '#aab1b8');
+  };
+  PH.led_bl = function () {
+    var lens = M(0, '3V') === '6V';
+    return sh(100, 118, 64, 8) + R(30, 70, 140, 22, '#efefec', 3) + R(60, 44, 80, 70, '#f6f6f3', 8, ' stroke="#c8ccd0" stroke-width="1.5"') + C(100, 79, 26, '#f2d24a') + C(100, 79, 26, 'url(#phDisc)') +
+      (lens ? C(100, 79, 38, 'rgba(210,230,255,.35)', ' stroke="#c4dcf2" stroke-width="1.5"') + E(90, 64, 12, 6, 'rgba(255,255,255,.55)') : '') + T(100, 136, lens ? '6 В' : '3 В', 10, '#aab1b8');
+  };
+  PH.bl_strip = function () {
+    var tag = M(0, '8×3V'), n = parseInt(tag, 10) || 8, lens = tag.indexOf('6V') > 0, out = sh(100, 112, 90, 7);
+    out += g('rotate(-10 100 80)', R(8, 70, 184, 20, '#f4f4f2', 3) + (function () { var x = ''; for (var i = 0; i < n; i++) { var cx = 22 + (168 / n) * (i + 0.5); x += R(cx - 5, 75, 10, 10, '#f2d24a', 1) + (lens ? C(cx, 80, 7, 'rgba(210,230,255,.4)', ' stroke="#c4dcf2"') : ''); } return x; })() + R(8, 74, 10, 12, '#1d1e21', 1));
+    return out + T(100, 128, tag.replace('×', ' × '), 10, '#aab1b8');
+  };
+  PH.dualmos = function () {
+    var legs = '';
+    for (var i = 0; i < 4; i++) { var x = 70 + i * 20; legs += R(x - 3, 98, 6, 14, 'url(#phLegV)', 1) + R(x - 3, 38, 6, 14, 'url(#phLegV)', 1); }
+    return sh(100, 122, 54, 7) + legs + P('M58 50 L142 50 L148 56 L148 100 L52 100 L52 56 Z', '#1b1c1f') + R(52, 56, 96, 44, 'url(#phGlossX)', 3) + P('M52 56 L58 50 L142 50 L148 56 Z', '#2c2e33') +
+      C(62, 90, 3, '#3a3c40') + T(100, 82, M(0, '4800'), 13, '#cfd3d8');
+  };
+  PH.fan = function () {
+    var bl = '';
+    for (var i = 0; i < 7; i++) bl += '<path d="M100 72 q22 -30 38 -13 q-13 7 -38 13z" fill="#3a3d43" transform="rotate(' + (i * 51.4) + ' 100 72)"/>';
+    return sh(100, 136, 62, 7) + R(42, 14, 116, 116, '#1d1e21', 12) + R(42, 14, 116, 116, 'url(#phGloss)', 12) + C(100, 72, 52, '#0f1114') + bl + C(100, 72, 14, '#55595f') + C(100, 72, 14, 'url(#phDisc)') +
+      S('M150 120 Q166 136 182 138', '#e6c229', 2.5) + S('M150 123 Q164 140 182 142', '#222', 2.5) + S('M150 117 Q168 132 182 134', '#3a9a4a', 2.5) + S('M150 114 Q170 128 182 130', '#2f6bd8', 2.5);
+  };
+  PH.ddmotor = function () {
+    var teeth = '';
+    for (var i = 0; i < 24; i++) teeth += '<rect x="97" y="12" width="6" height="22" rx="1.5" fill="url(#phCopper)" transform="rotate(' + (i * 15) + ' 100 74)"/>';
+    return sh(100, 140, 70, 7) + C(100, 74, 62, '#6f767e') + C(100, 74, 62, 'url(#phDisc)') + C(100, 74, 38, '#20242a') + teeth + C(100, 74, 26, 'url(#phSteelX)') + T(100, 78, 'DD', 10, '#20242a') + R(150, 120, 34, 14, '#e8e8e2', 2);
+  };
+  PH.indcoil = function () {
+    var d = 'M100 72';
+    for (var a = 0; a <= 360 * 6; a += 15) { var r = 10 + a / (360 * 6) * 46, t = a * Math.PI / 180; d += ' L' + (100 + r * Math.cos(t)).toFixed(1) + ' ' + (72 + r * Math.sin(t) * 0.82).toFixed(1); }
+    return sh(100, 132, 74, 8) + E(100, 74, 64, 54, '#9aa1a8') + E(100, 72, 60, 50, '#1b1c1f') + S(d, '#d1773a', 3.2) + E(100, 72, 60, 50, 'url(#phDisc)') + R(140, 118, 12, 10, '#d8b44a', 2) + R(156, 118, 12, 10, '#d8b44a', 2);
+  };
+
   MC.photo = function (comp) {
     ensureDefs();
     var fn = PH[comp.id];
